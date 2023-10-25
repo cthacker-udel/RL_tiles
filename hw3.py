@@ -8,6 +8,9 @@ from typing import Optional
 [ ] - Implement beginning of Q-Value algorithm (early structure)
 [ ] - Test final product
 """
+
+# region Test Cases
+
 test_case_1 = ["15 12 8 6 p", "1\tup\n2\tright\n3\tup\n4\tleft\n5\tup\n6\twall-square\n7\tup\n8\tforbid\n9\tup\n10\tup\n11\tup\n12\tgoal\n13\tright\n14\tright\n15\tgoal\n16\tup"]
 test_case_2 = ["15 12 8 6 q 11",
                "up\t100.0\nright\t100.0\ndown\t0.89\nleft\t0.89"]
@@ -22,41 +25,6 @@ test_case_8 = ["13 11 7 15 p", "1\tup\n2\tup\n3\tright\n4\tup\n5\tup\n6\tup\n7\t
 test_cases = [test_case_1, test_case_2, test_case_3, test_case_4,
               test_case_5, test_case_6, test_case_7, test_case_8]
 
-"""
- up    100.0
-right    100.0
-down    0.89
-left    0.89
-
-
-up	100.0
-right	100.0
-down	0.89
-left	0.89	
-"""
-
-# region Helpers
-
-
-def create_basic_board(rows, cols) -> list[list[BoardTile]]:
-    board: list[list[BoardTile]] = []
-    for i in range(rows):
-        sub_row = []
-        for j in range(cols):
-            sub_row.append(BoardTile((i + 1) + j))
-        board.append(sub_row)
-    return board
-
-
-def parse_input(inp: str) -> ParsedInput:
-    split_inp = inp.split(' ')
-    if len(split_inp) == 5:
-        [goal_ind1, goal_ind2, forbidden_ind, wall_ind, output_type] = split_inp
-        return ParsedInput(int(goal_ind1), int(goal_ind2), int(forbidden_ind), int(wall_ind), output_type)
-    else:
-        [goal_ind1, goal_ind2, forbidden_ind, wall_ind,
-            output_type, q_value_ind] = split_inp
-        return ParsedInput(int(goal_ind1), int(goal_ind2), int(forbidden_ind), int(wall_ind), output_type, int(q_value_ind))
 # endregion
 
 # region Enums
@@ -90,6 +58,10 @@ class BoardTile:
     def __init__(self: BoardTile, index: int = -1, tile_type=TileType.NORMAL) -> None:
         self.index: int = index
         self.tile_type: TileType = tile_type
+        self.q_north = 0  # up
+        self.q_east = 0  # right
+        self.q_south = 0  # down
+        self.q_west = 0  # left
 
 
 class ParsedInput:
@@ -101,16 +73,59 @@ class ParsedInput:
         self.output_format: OutputFormat = OutputFormat.PRINT if output_format == "p" else OutputFormat.OPTIMAL_Q
         self.q_ind = q_ind
 
+    def classify_tile_by_ind(self: ParsedInput, ind: int) -> TileType:
+        if ind == self.goal_1_ind or ind == self.goal_2_ind:
+            return TileType.GOAL
+        elif ind == self.forbid_ind:
+            return TileType.FORBIDDEN
+        elif ind == self.wall_ind:
+            return TileType.WALL
+        else:
+            return TileType.NORMAL
+
     def __str__(self: ParsedInput):
         return f'{self.goal_1_ind} {self.goal_2_ind} {self.forbid_ind} {self.wall_ind} {"p" if self.output_format == OutputFormat.PRINT else "q"}{("" + str(self.q_ind)) if self.q_ind is not None else ""}'
 
+# endregion
+
+# region Helpers
+
+
+def create_basic_board(rows, cols) -> list[list[BoardTile]]:
+    board: list[list[BoardTile]] = []
+    for i in range(rows):
+        sub_row = []
+        for j in range(cols):
+            sub_row.append(BoardTile((i + 1) + j))
+        board.append(sub_row)
+    return board
+
+
+def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput) -> list[list[BoardTile]]:
+    for each_row in board:
+        for each_tile in each_row:
+            tile_classification = parsed_input.classify_tile_by_ind(
+                each_tile.index)
+            each_tile.tile_type = tile_classification
+    return board
+
+
+def parse_input(inp: str) -> ParsedInput:
+    split_inp = inp.split(' ')
+    if len(split_inp) == 5:
+        [goal_ind1, goal_ind2, forbidden_ind, wall_ind, output_type] = split_inp
+        return ParsedInput(int(goal_ind1), int(goal_ind2), int(forbidden_ind), int(wall_ind), output_type)
+    else:
+        [goal_ind1, goal_ind2, forbidden_ind, wall_ind,
+            output_type, q_value_ind] = split_inp
+        return ParsedInput(int(goal_ind1), int(goal_ind2), int(forbidden_ind), int(wall_ind), output_type, int(q_value_ind))
 # endregion
 
 # region Main Classes
 
 
 class BoardSolver:
-    def __init__(self: BoardSolver, goal_1_index: int, goal_2: int, forbidden: int, wall_square: int, output_format: OutputFormat, rows=4, cols=4,):
+    def __init__(self: BoardSolver, rows=4, cols=4,):
         self.board = create_basic_board(rows, cols)
 
 # endregion
@@ -122,7 +137,8 @@ def main(inp: bool = False):
     else:
         for each_test_case in test_cases:
             parsed_input = parse_input(each_test_case[0])
-            print(parsed_input)
+            board_solver = BoardSolver()
+            apply_input_to_board(board_solver.board, parsed_input)
 
 
 if __name__ == '__main__':
