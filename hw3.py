@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional
+from typing import Optional, Self
 import time
 import random
 random.seed(1)
@@ -232,11 +232,63 @@ def clone_board(board: list[list[BoardTile]]) -> list[list[BoardTile]]:
     return cloned_board
 
 
-def print_board(board: list[list[BoardTile]]) -> None:
+def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> None:
+    q_tops = []
+    q_middles = []
+    q_bottoms = []
     for each_row in board:
-        for each_tile in each_row:
-            print(
-                f'({each_tile.x}, {each_tile.y}) R-NESW [{each_tile.reward_north}, {each_tile.reward_east}, {each_tile.reward_south}, {each_tile.reward_west}] | Q-NESW [{each_tile.q_north}, {each_tile.q_east}, {each_tile.q_south}, {each_tile.q_west}]')
+        row_tops = [f' {x.q_north} ' for x in each_row]
+        q_tops.append(row_tops)
+        row_middles = [f'{x.q_west} {x.q_east}' for x in each_row]
+        q_middles.append(row_middles)
+        row_bottoms = [f' {x.q_south} ' for x in each_row]
+        q_bottoms.append(row_bottoms)
+    q_prints = []
+    for i in range(len(q_tops)):
+        q_prints.append(f'{"\t".join(q_tops[i])}\n{
+                        "\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
+    q_output = '\n\n'.join(q_prints)
+    print(q_output)
+
+    r_tops = []
+    r_middles = []
+    r_bottoms = []
+    for each_row in board:
+        row_tops = [f'\t  {x.reward_north}\t' for x in each_row]
+        r_tops.append(row_tops)
+        row_middles = [f'\t{x.reward_west} {
+            x.reward_east}\t' for x in each_row]
+        r_middles.append(row_middles)
+        row_bottoms = [f'\t  {x.reward_south}\t' for x in each_row]
+        r_bottoms.append(row_bottoms)
+    r_prints = []
+    for i in range(len(r_tops)):
+        r_prints.append(f'{"\t".join(r_tops[i])}\n{
+                        "".join(r_middles[i])}\n{"\t".join(r_bottoms[i])}')
+    r_output = '\n\n'.join(r_prints)
+    print("####################################")
+    print("################################### REWARDS ###################################")
+    print(r_output)
+    print("###############################################################################")
+
+    print("################## BOARD ###################")
+    board_output = []
+    y = 0
+    for each_row in board:
+        sub_row = []
+        for i in range(len(each_row)):
+            if y == agent_y and agent_x == i:
+                sub_row.append('[A]\t')
+            else:
+                sub_row.append('[ ]\t')
+        board_output.append(sub_row)
+        y += 1
+    board_print = []
+    for each_row in board_output:
+        board_print.append('\t'.join(each_row))
+    b_output = '\n'.join(board_print)
+    print(b_output)
+    print("######################################################")
 
 
 # endregion
@@ -267,13 +319,8 @@ class State:
 
         if self.debug:
             print('-----------------------------------------------------')
-            print('###### BOARD ######')
-            print_board(self.board)
-            print("###################")
-            print("##### AGENT #####")
-            print(
-                f'({self.agent.x}, {self.agent.y}) -- {stringify_agent_action(action)}')
-            print('#################')
+            print('############### Q_VALUES ###############')
+            print_board(self.board, self.agent.x, self.agent.y)
             print('-----------------------------------------------------')
             time.sleep(2)
 
