@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional
+from turtle import clone
+from typing import Optional, Self
 import random
 random.seed(1)
 
@@ -84,7 +85,7 @@ class BoardTile:
             return self.reward_north
         elif action == AgentAction.RIGHT:
             return self.reward_east
-        
+
         # left
         return self.reward_west
 
@@ -95,9 +96,22 @@ class BoardTile:
             return self.q_north
         elif action == AgentAction.RIGHT:
             return self.q_east
-        
+
         # moving left
         return self.q_west
+
+    def clone(self: BoardTile) -> BoardTile:
+        cloned_tile = BoardTile(self.x, self.y, self.index, self.tile_type)
+        cloned_tile.q_north = self.q_north
+        cloned_tile.q_south = self.q_south
+        cloned_tile.q_east = self.q_east
+        cloned_tile.q_west = self.q_west
+        cloned_tile.reward_north = self.reward_north
+        cloned_tile.reward_south = self.reward_south
+        cloned_tile.reward_east = self.reward_east
+        cloned_tile.reward_west = self.reward_west
+
+        return cloned_tile
 
 
 class ParsedInput:
@@ -143,20 +157,20 @@ class Agent:
     def clone(self: Agent):
         return Agent(self.x, self.y, self.ind)
 
-    def simulate_input(self: Agent, move: AgentAction) -> Agent:
+    def simulate_input(self: Agent, action: AgentAction) -> Agent:
         # returns the row
-        if move == AgentAction.UP:
+        if action == AgentAction.UP:
             return Agent(self.x, self.y + 1)
-        elif move == AgentAction.DOWN:
+        elif action == AgentAction.DOWN:
             return Agent(self.x, self.y - 1)
-        elif move == AgentAction.LEFT:
+        elif action == AgentAction.LEFT:
             return Agent(self.x - 1, self.y)
         # RIGHT
         return Agent(self.x + 1, self.y)
 
 # endregion
 
-# region Helpers
+# region Helper Functions
 
 
 def create_basic_board(rows, cols) -> list[list[BoardTile]]:
@@ -178,7 +192,8 @@ def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput
             if tile_classification == TileType.GOAL:
                 each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = 100, 100, 100, 100
             elif tile_classification == TileType.FORBIDDEN:
-                each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = -100, -100, -100, -100
+                each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = - \
+                    100, -100, -100, -100
     return board
 
 
@@ -198,7 +213,17 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
         for each_col in each_row:
             if each_col.index == ind:
                 return each_col
-    raise Exception("Tile index does not exist")
+    raise ValueError("Tile index does not exist")
+
+
+def clone_board(board: list[list[BoardTile]]) -> list[list[BoardTile]]:
+    cloned_board: list[list[BoardTile]] = []
+    for each_row in board:
+        sub_row = []
+        for each_cell in each_row:
+            sub_row.append(each_cell.clone())
+        cloned_board.append(sub_row)
+    return cloned_board
 
 
 # endregion
@@ -206,8 +231,8 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
 # region Main Classes
 
 
-class BoardSolver:
-    def __init__(self: BoardSolver, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None):
+class State:
+    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None):
         self.board: list[list[BoardTile]] = board if board is not None else create_basic_board(
             rows, cols)
         self.living_reward = living_reward  # r
@@ -220,17 +245,39 @@ class BoardSolver:
             self.agent = Agent(found_start_tile.x, found_start_tile.y)
         else:
             self.agent = agent
+        self.rows = rows
+        self.cols = cols
 
-    def q_value(self: BoardSolver, action: AgentAction) -> None:
+    def q_value(self: State, action: AgentAction) -> float:
         # Q(s,a) is 0 initially
-        found_tile = find_tile_by_ind(self.board, self.board[self.agent.y][self.agent.x].index)
+        found_tile = find_tile_by_ind(
+            self.board, self.board[self.agent.y][self.agent.x].index)
+
+        if found_tile.tile_type == TileType.FORBIDDEN:
+            return found_tile.reward_east
+        elif found_tile.tile_type == TileType.GOAL:
+            return found_tile.reward_east
+
         left = (1 - self.learning_rate) * found_tile.get_q(action)
 
-        right = self.learning_rate * (found_tile.get_reward(action) + self.discount_rate * 
-        return (1 - self.learning_rate) * self.q_value()
+        sprime = self.clone().move_agent(action)
+        right = self.learning_rate * \
+            (found_tile.get_reward(action) +
+             self.discount_rate * max([sprime.q_value(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]]))
+        return left + right
 
-    def learn(self: BoardSolver) -> None:
-        pass
+    def clone(self: State) -> State:
+        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, clone_board(self.board), self.agent.clone())
+
+    def move_agent(self: State, action: AgentAction) -> State:
+        self.agent = self.agent.simulate_input(action)
+        return self
+
+    def learn(self: State) -> None:
+        self.q_value(AgentAction.UP)
+        self.q_value(AgentAction.DOWN)
+        self.q_value(AgentAction.RIGHT)
+        self.q_value(AgentAction.LEFT)
 
 
 # endregion
@@ -242,8 +289,9 @@ def main(inp: bool = False):
     else:
         for each_test_case in test_cases:
             parsed_input = parse_input(each_test_case[0])
-            board_solver = BoardSolver()
+            board_solver = State()
             apply_input_to_board(board_solver.board, parsed_input)
+            board_solver.learn()
 
 
 if __name__ == '__main__':
