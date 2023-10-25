@@ -72,7 +72,32 @@ class BoardTile:
         self.q_east = 0  # right
         self.q_south = 0  # down
         self.q_west = 0  # left
-        self.reward = 0  # reward for tile
+        self.reward_north = -0.1
+        self.reward_east = -0.1
+        self.reward_south = -0.1
+        self.reward_west = -0.1
+
+    def get_reward(self: BoardTile, action: AgentAction):
+        if action == AgentAction.DOWN:
+            return self.reward_south
+        elif action == AgentAction.UP:
+            return self.reward_north
+        elif action == AgentAction.RIGHT:
+            return self.reward_east
+        
+        # left
+        return self.reward_west
+
+    def get_q(self: BoardTile, action: AgentAction):
+        if action == AgentAction.DOWN:
+            return self.q_south
+        elif action == AgentAction.UP:
+            return self.q_north
+        elif action == AgentAction.RIGHT:
+            return self.q_east
+        
+        # moving left
+        return self.q_west
 
 
 class ParsedInput:
@@ -118,6 +143,17 @@ class Agent:
     def clone(self: Agent):
         return Agent(self.x, self.y, self.ind)
 
+    def simulate_input(self: Agent, move: AgentAction) -> Agent:
+        # returns the row
+        if move == AgentAction.UP:
+            return Agent(self.x, self.y + 1)
+        elif move == AgentAction.DOWN:
+            return Agent(self.x, self.y - 1)
+        elif move == AgentAction.LEFT:
+            return Agent(self.x - 1, self.y)
+        # RIGHT
+        return Agent(self.x + 1, self.y)
+
 # endregion
 
 # region Helpers
@@ -140,9 +176,9 @@ def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput
                 each_tile.index)
             each_tile.tile_type = tile_classification
             if tile_classification == TileType.GOAL:
-                each_tile.reward = 100
+                each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = 100, 100, 100, 100
             elif tile_classification == TileType.FORBIDDEN:
-                each_tile.reward = -100
+                each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = -100, -100, -100, -100
     return board
 
 
@@ -179,11 +215,19 @@ class BoardSolver:
         self.learning_rate = learning_rate  # alpha
         self.iterations = 0
         self.max_iter = max_iter
-        if self.agent is None:
+        if agent is None:
             found_start_tile = find_tile_by_ind(self.board, START_IND)
             self.agent = Agent(found_start_tile.x, found_start_tile.y)
         else:
             self.agent = agent
+
+    def q_value(self: BoardSolver, action: AgentAction) -> None:
+        # Q(s,a) is 0 initially
+        found_tile = find_tile_by_ind(self.board, self.board[self.agent.y][self.agent.x].index)
+        left = (1 - self.learning_rate) * found_tile.get_q(action)
+
+        right = self.learning_rate * (found_tile.get_reward(action) + self.discount_rate * 
+        return (1 - self.learning_rate) * self.q_value()
 
     def learn(self: BoardSolver) -> None:
         pass
