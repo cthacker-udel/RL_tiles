@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
-from turtle import clone
-from typing import Optional, Self
+from typing import Optional
+import time
 import random
 random.seed(1)
 
@@ -173,14 +173,20 @@ class Agent:
 # region Helper Functions
 
 
-def create_basic_board(rows, cols) -> list[list[BoardTile]]:
+def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
     board: list[list[BoardTile]] = []
+    ind = 1
     for i in range(rows):
         sub_row = []
         for j in range(cols):
-            sub_row.append(BoardTile(j, i, (i + 1) + j))
+            sub_row.append(BoardTile(j, i, ind))
+            ind += 1
         board.append(sub_row)
     return board
+
+
+def stringify_agent_action(action: AgentAction) -> str:
+    return 'EAST' if action == AgentAction.RIGHT else "WEST" if action == AgentAction.LEFT else "NORTH" if action == AgentAction.UP else "SOUTH"
 
 
 def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput) -> list[list[BoardTile]]:
@@ -226,19 +232,26 @@ def clone_board(board: list[list[BoardTile]]) -> list[list[BoardTile]]:
     return cloned_board
 
 
+def print_board(board: list[list[BoardTile]]) -> None:
+    for each_row in board:
+        for each_tile in each_row:
+            print(
+                f'({each_tile.x}, {each_tile.y}) R-NESW [{each_tile.reward_north}, {each_tile.reward_east}, {each_tile.reward_south}, {each_tile.reward_west}] | Q-NESW [{each_tile.q_north}, {each_tile.q_east}, {each_tile.q_south}, {each_tile.q_west}]')
+
+
 # endregion
 
 # region Main Classes
 
 
 class State:
-    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None):
+    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None, iterations=0):
         self.board: list[list[BoardTile]] = board if board is not None else create_basic_board(
             rows, cols)
         self.living_reward = living_reward  # r
         self.discount_rate = discount  # gamma
         self.learning_rate = learning_rate  # alpha
-        self.iterations = 0
+        self.iterations = iterations
         self.max_iter = max_iter
         if agent is None:
             found_start_tile = find_tile_by_ind(self.board, START_IND)
@@ -247,9 +260,28 @@ class State:
             self.agent = agent
         self.rows = rows
         self.cols = cols
+        self.debug = True
 
     def q_value(self: State, action: AgentAction) -> float:
         # Q(s,a) is 0 initially
+
+        if self.debug:
+            print('-----------------------------------------------------')
+            print('###### BOARD ######')
+            print_board(self.board)
+            print("###################")
+            print("##### AGENT #####")
+            print(
+                f'({self.agent.x}, {self.agent.y}) -- {stringify_agent_action(action)}')
+            print('#################')
+            print('-----------------------------------------------------')
+            time.sleep(2)
+
+        if self.agent.x < 0 or self.agent.x >= self.cols:
+            return 0.0
+        elif self.agent.y < 0 or self.agent.y >= self.rows:
+            return 0.0
+
         found_tile = find_tile_by_ind(
             self.board, self.board[self.agent.y][self.agent.x].index)
 
@@ -260,14 +292,14 @@ class State:
 
         left = (1 - self.learning_rate) * found_tile.get_q(action)
 
-        sprime = self.clone().move_agent(action)
+        sprime = self.clone(self.iterations + 1).move_agent(action)
         right = self.learning_rate * \
             (found_tile.get_reward(action) +
-             self.discount_rate * max([sprime.q_value(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]]))
+             self.discount_rate * max(sprime.q_value(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
         return left + right
 
-    def clone(self: State) -> State:
-        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, clone_board(self.board), self.agent.clone())
+    def clone(self: State, new_iter=0) -> State:
+        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, clone_board(self.board), self.agent.clone(), new_iter)
 
     def move_agent(self: State, action: AgentAction) -> State:
         self.agent = self.agent.simulate_input(action)
