@@ -273,7 +273,7 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
 
 def chooses_random(epsilon: float | int = 0.5) -> bool:
-    rand_value = random.random()
+    rand_value = random.uniform(0, 1)
     curr_policy = 1 - epsilon
     if rand_value <= curr_policy:
         return False
@@ -289,35 +289,22 @@ def print_q_values(board: list[list[BoardTile]]) -> None:
     q_middles = []
     q_bottoms = []
     for each_row in board:
-        row_tops = [f' {round(x.q_north, 2)} ' for x in each_row]
+        row_tops = [f' {round(x.q_north, 2)} '.rjust(20) for x in each_row]
         q_tops.append(row_tops)
-        row_middles = [f'{round(x.q_west, 2)} {round(x.q_east, 2)}' for x in each_row]
+        row_middles = [f'{round(x.q_west, 2)} {round(x.q_east, 2)}'.rjust(20) for x in each_row]
         q_middles.append(row_middles)
-        row_bottoms = [f' {round(x.q_south, 2)} ' for x in each_row]
+        row_bottoms = [f' {round(x.q_south, 2)} '.rjust(20) for x in each_row]
         q_bottoms.append(row_bottoms)
     q_prints = []
     for i in range(len(q_tops)):
-        q_prints.append(f'{"\t".join(q_tops[i])}\n{"\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
+        q_prints.append(f'{"".join(q_tops[i]).ljust(20)}\n{"".join(
+            q_middles[i]).ljust(20)}\n{"".join(q_bottoms[i]).ljust(20)}')
     q_output = '\n\n'.join(q_prints)
     print(q_output)
 
 
 def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> None:
-    q_tops = []
-    q_middles = []
-    q_bottoms = []
-    for each_row in board:
-        row_tops = [f' {f_q(x.q_north)} ' for x in each_row]
-        q_tops.append(row_tops)
-        row_middles = [f'{f_q(x.q_west)} {f_q(x.q_east)}' for x in each_row]
-        q_middles.append(row_middles)
-        row_bottoms = [f' {f_q(x.q_south)} ' for x in each_row]
-        q_bottoms.append(row_bottoms)
-    q_prints = []
-    for i in range(len(q_tops)):
-        q_prints.append(f'{"\t".join(q_tops[i])}\n{"\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
-    q_output = '\n\n'.join(q_prints)
-    print(q_output)
+    print_q_values(board)
 
     print(f"################## BOARD [Agent({agent_x, agent_y})] ###################")
     board_output = []
@@ -369,7 +356,7 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = False
+        self.debug = True
 
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
@@ -409,32 +396,42 @@ class State:
                     new_q_value = current_tile.get_q(q_and_action[1])
                     future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
 
-                    # discount_value = self.discount_rate * \
-                    #     (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
-                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
-
                     discount_value = self.discount_rate * max(future_tile.get_all_q())
                     right_value = self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
                     left_value = (1 - self.learning_rate) * new_q_value
                     new_q_value = left_value + right_value
 
+                    # discount_value = self.discount_rate * \
+                    #     (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
+                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+
                     current_tile.set_q(q_and_action[1], new_q_value)
-                    # set the q, change current tile
+
                     current_tile = future_tile
                     self.agent.x = future_tile.x
                     self.agent.y = future_tile.y
                     self.agent.ind = future_tile.index
-                except:
+                except Exception as ex:
                     left_value = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
                     right_value = self.learning_rate * self.living_reward
-                    current_tile.set_q(q_and_action[1], left_value + right_value)
+                    new_q_value = left_value + right_value
 
-                    # current_tile.set_q(q_and_action[1], current_tile.get_q(
-                    #     q_and_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(q_and_action[1])))
+                    # new_q_value = current_tile.get_q(q_and_action[1])
+                    # discount_value = self.discount_rate * (-current_tile.get_q(q_and_action[1]))
+                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+
+                    current_tile.set_q(q_and_action[1], new_q_value)
 
                 if current_tile.is_terminal:
-                    current_tile.set_all_q(((1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
-                                            ) + (self.learning_rate * current_tile.get_reward(AgentAction.UP)))
+                    left_part = (1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
+                    right_part = self.learning_rate * current_tile.get_reward(AgentAction.UP)
+                    new_q_value = left_part + right_part
+
+                    # new_q_value = current_tile.get_q(AgentAction.UP)
+                    # discount_value = self.discount_rate * (-current_tile.get_q(AgentAction.UP))
+                    # new_q_value += self.learning_rate * (current_tile.get_reward(AgentAction.UP) + discount_value)
+
+                    current_tile.set_all_q(new_q_value)
                 iteration_count += 1
                 print(iteration_count)
 
