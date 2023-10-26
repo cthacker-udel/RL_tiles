@@ -90,9 +90,9 @@ class BoardTile:
 
     def get_q(self: BoardTile, action: AgentAction):
         if action == AgentAction.DOWN:
-            return self.q_south
-        elif action == AgentAction.UP:
             return self.q_north
+        elif action == AgentAction.UP:
+            return self.q_south
         elif action == AgentAction.RIGHT:
             return self.q_east
 
@@ -101,9 +101,9 @@ class BoardTile:
 
     def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
         if action == AgentAction.DOWN:
-            self.q_south = value
-        elif action == AgentAction.UP:
             self.q_north = value
+        elif action == AgentAction.UP:
+            self.q_south = value
         elif action == AgentAction.LEFT:
             self.q_west = value
         elif action == AgentAction.RIGHT:
@@ -277,6 +277,9 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
     return future_piece
 
 
+f_q: Callable[[float], float] = lambda x: round(x, 2)
+
+
 def print_q_values(board: list[list[BoardTile]]) -> None:
     q_tops = []
     q_middles = []
@@ -300,11 +303,11 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
     q_middles = []
     q_bottoms = []
     for each_row in board:
-        row_tops = [f' {x.q_north} ' for x in each_row]
+        row_tops = [f' {f_q(x.q_north)} ' for x in each_row]
         q_tops.append(row_tops)
-        row_middles = [f'{x.q_west} {x.q_east}' for x in each_row]
+        row_middles = [f'{f_q(x.q_west)} {f_q(x.q_east)}' for x in each_row]
         q_middles.append(row_middles)
-        row_bottoms = [f' {x.q_south} ' for x in each_row]
+        row_bottoms = [f' {f_q(x.q_south)} ' for x in each_row]
         q_bottoms.append(row_bottoms)
     q_prints = []
     for i in range(len(q_tops)):
