@@ -101,9 +101,9 @@ class BoardTile:
 
     def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
         if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
-            self.q_north = value
-        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
             self.q_south = value
+        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
+            self.q_north = value
         elif action == AgentAction.LEFT:
             self.q_west = value
         elif action == AgentAction.RIGHT:
@@ -241,7 +241,10 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
     if action == AgentAction.UP:
 
+        new_y = curr_y - 1
         future_piece = board[curr_y - 1][curr_x]  # in terms of the board being flipped, the directions are flipped
+        if new_y == -1:
+            raise Exception("Out of bounds")
 
         if future_piece.tile_type == TileType.WALL:
             raise Exception("Hit wall")
@@ -366,7 +369,7 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = False
+        self.debug = True
 
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
