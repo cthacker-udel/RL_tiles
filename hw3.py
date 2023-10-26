@@ -79,19 +79,19 @@ class BoardTile:
 
     def get_reward(self: BoardTile, action: AgentAction):
         if action == AgentAction.DOWN:
-            return self.reward_south
-        elif action == AgentAction.UP:
             return self.reward_north
-        elif action == AgentAction.RIGHT:
+        if action == AgentAction.UP:
+            return self.reward_south
+        if action == AgentAction.RIGHT:
             return self.reward_east
 
         # left
         return self.reward_west
 
     def get_q(self: BoardTile, action: AgentAction):
-        if action == AgentAction.DOWN:
+        if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
             return self.q_north
-        elif action == AgentAction.UP:
+        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
             return self.q_south
         elif action == AgentAction.RIGHT:
             return self.q_east
@@ -100,9 +100,9 @@ class BoardTile:
         return self.q_west
 
     def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
-        if action == AgentAction.DOWN:
+        if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
             self.q_north = value
-        elif action == AgentAction.UP:
+        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
             self.q_south = value
         elif action == AgentAction.LEFT:
             self.q_west = value
@@ -111,6 +111,9 @@ class BoardTile:
 
     def get_all_q(self: BoardTile) -> list[float]:
         return [self.q_east, self.q_west, self.q_north, self.q_south]
+
+    def set_all_q(self: BoardTile, value: float) -> None:
+        self.q_north, self.q_south, self.q_east, self.q_west = value, value, value, value
 
 
 class ParsedInput:
@@ -165,15 +168,6 @@ class ParsedInput:
         print('\n'.join(directions))
 
 
-def chooses_random(epsilon: float | int = 0.5) -> bool:
-    rand_value = random.random()
-    curr_policy = 1 - epsilon
-    if rand_value <= curr_policy:
-        return False
-
-    return True
-
-
 class Agent:
     def __init__(self: Agent, x=0, y=0, ind=0):
         self.x = x
@@ -205,12 +199,10 @@ def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput
             each_tile.tile_type = tile_classification
             if tile_classification == TileType.GOAL:
                 each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = 100, 100, 100, 100
-                each_tile.q_west, each_tile.q_east, each_tile.q_north, each_tile.q_south = 100, 100, 100, 100
                 each_tile.is_terminal = True
             elif tile_classification == TileType.FORBIDDEN:
                 each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = - \
                     100, -100, -100, -100
-                each_tile.q_west, each_tile.q_east, each_tile.q_north, each_tile.q_south = -100, -100, -100, -100
                 each_tile.is_terminal = True
     return board
 
@@ -236,7 +228,7 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
 
 def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, curr_x: int, curr_y: int) -> BoardTile:
     if action == AgentAction.DOWN:
-        new_y = curr_y - 1
+        new_y = curr_y + 1  # in terms of the board being flipped, the directions are flipped
         if new_y == -1:
             raise Exception("Out of bounds")
 
@@ -249,7 +241,7 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
     if action == AgentAction.UP:
 
-        future_piece = board[curr_y + 1][curr_x]
+        future_piece = board[curr_y - 1][curr_x]  # in terms of the board being flipped, the directions are flipped
 
         if future_piece.tile_type == TileType.WALL:
             raise Exception("Hit wall")
@@ -275,6 +267,15 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
     # right
     return future_piece
+
+
+def chooses_random(epsilon: float | int = 0.5) -> bool:
+    rand_value = random.random()
+    curr_policy = 1 - epsilon
+    if rand_value <= curr_policy:
+        return False
+
+    return True
 
 
 f_q: Callable[[float], float] = lambda x: round(x, 2)
@@ -402,9 +403,16 @@ class State:
                 try:
                     new_q_value = current_tile.get_q(q_and_action[1])
                     future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
-                    discount_value = self.discount_rate * \
-                        (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
-                    new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+
+                    # discount_value = self.discount_rate * \
+                    #     (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
+                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+
+                    discount_value = self.discount_rate * max(future_tile.get_all_q())
+                    right_value = self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+                    left_value = (1 - self.learning_rate) * new_q_value
+                    new_q_value = left_value + right_value
+
                     current_tile.set_q(q_and_action[1], new_q_value)
                     # set the q, change current tile
                     current_tile = future_tile
@@ -412,9 +420,16 @@ class State:
                     self.agent.y = future_tile.y
                     self.agent.ind = future_tile.index
                 except:
-                    current_tile.set_q(q_and_action[1], current_tile.get_q(
-                        q_and_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(q_and_action[1])))
+                    left_value = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
+                    right_value = self.learning_rate * self.living_reward
+                    current_tile.set_q(q_and_action[1], left_value + right_value)
 
+                    # current_tile.set_q(q_and_action[1], current_tile.get_q(
+                    #     q_and_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(q_and_action[1])))
+
+                if current_tile.is_terminal:
+                    current_tile.set_all_q(((1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
+                                            ) + (self.learning_rate * current_tile.get_reward(AgentAction.UP)))
             iteration_count += 1
             print(iteration_count)
 
