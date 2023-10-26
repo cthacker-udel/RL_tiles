@@ -340,6 +340,9 @@ class State:
         iteration_count = 0
         while self.epsilon != 0:
             current_tile = find_tile_by_ind(self.board, START_IND)
+            self.agent.x = current_tile.x
+            self.agent.y = current_tile.y
+            self.agent.ind = current_tile.index
             while not current_tile.is_terminal:
                 if iteration_count >= self.max_iter:
                     self.epsilon = 0
@@ -379,8 +382,8 @@ class State:
                     current_tile.set_q(q_and_action[1], current_tile.get_q(
                         q_and_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(q_and_action[1])))
 
-                iteration_count += 1
-                print(iteration_count)
+            iteration_count += 1
+            print(iteration_count)
 
     def learn(self: State) -> None:
         self.q_value()
