@@ -33,6 +33,7 @@ test_cases = [test_case_1, test_case_2, test_case_3, test_case_4,
 # region Constants
 
 START_IND = 2
+ITERATION_COUNT = 0
 
 # endregion
 
@@ -100,6 +101,16 @@ class BoardTile:
         # moving left
         return self.q_west
 
+    def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
+        if action == AgentAction.DOWN:
+            self.q_south = value
+        elif action == AgentAction.UP:
+            self.q_north = value
+        elif action == AgentAction.LEFT:
+            self.q_west = value
+        elif action == AgentAction.RIGHT:
+            self.q_east = value
+
     def clone(self: BoardTile) -> BoardTile:
         cloned_tile = BoardTile(self.x, self.y, self.index, self.tile_type)
         cloned_tile.q_north = self.q_north
@@ -145,7 +156,7 @@ class Agent:
         self.moves = [AgentAction.UP, AgentAction.DOWN,
                       AgentAction.LEFT, AgentAction.RIGHT]
 
-    def choose_move(self: Agent, policy: AgentAction, epsilon=1):
+    def choose_move(self: Agent, policy: AgentAction, epsilon: float | int = 0.5):
         rand_value = random.random()
         curr_policy = 1 - epsilon
         if rand_value <= curr_policy:
@@ -186,7 +197,7 @@ def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
 
 
 def stringify_agent_action(action: AgentAction) -> str:
-    return 'EAST' if action == AgentAction.RIGHT else "WEST" if action == AgentAction.LEFT else "NORTH" if action == AgentAction.UP else "SOUTH"
+    return 'EAST' if action == AgentAction.RIGHT else "WEST" if action == AgentAction.LEFT else "DOWN" if action == AgentAction.UP else "UP"
 
 
 def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput) -> list[list[BoardTile]]:
@@ -232,7 +243,7 @@ def clone_board(board: list[list[BoardTile]]) -> list[list[BoardTile]]:
     return cloned_board
 
 
-def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> None:
+def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int, action: AgentAction) -> None:
     q_tops = []
     q_middles = []
     q_bottoms = []
@@ -264,11 +275,11 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
         r_prints.append(f'{"\t".join(r_tops[i])}\n{"".join(r_middles[i])}\n{"\t".join(r_bottoms[i])}')
     r_output = '\n\n'.join(r_prints)
     print("####################################")
-    print("################################### REWARDS ###################################")
+    print("################################### REWARDS #############################################")
     print(r_output)
-    print("###############################################################################")
+    print("#########################################################################################")
 
-    print("################## BOARD ###################")
+    print(f"################## BOARD [Agent({agent_x, agent_y, stringify_agent_action(action)})] ###################")
     board_output = []
     y = 0
     for each_row in board:
@@ -302,7 +313,7 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
 
 
 class State:
-    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None, iterations=0):
+    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None, iterations=0, epsilon=0.5):
         self.board: list[list[BoardTile]] = board if board is not None else create_basic_board(
             rows, cols)
         self.living_reward = living_reward  # r
@@ -317,47 +328,91 @@ class State:
             self.agent = agent
         self.rows = rows
         self.cols = cols
-        self.debug = False
+        self.epsilon = epsilon
+        self.debug = True
 
-    def q_value(self: State, action: AgentAction) -> float:
+    def q_value(self: State, action: AgentAction) -> None:
         # Q(s,a) is 0 initially
 
+        global ITERATION_COUNT
+        ITERATION_COUNT += 1
+        if ITERATION_COUNT >= self.max_iter:
+            self.epsilon = 0
+
         if self.debug:
-            print('-----------------------------------------------------')
+            print(f'----------------- ITERATION {self.iterations} --------------------------')
             print('############### Q_VALUES ###############')
-            print_board(self.board, self.agent.x, self.agent.y)
+            print_board(self.board, self.agent.x, self.agent.y, action)
             print('-----------------------------------------------------')
-            time.sleep(2)
+            # time.sleep(0.5)
 
         if self.agent.x < 0 or self.agent.x >= self.cols:
-            return 0.0
+            print('return 1')
+            return None
         elif self.agent.y < 0 or self.agent.y >= self.rows:
-            return 0.0
+            print('return 2')
+            return None
 
-        found_tile = find_tile_by_ind(
+        s = find_tile_by_ind(
             self.board, self.board[self.agent.y][self.agent.x].index)
 
-        if found_tile.tile_type == TileType.FORBIDDEN:
-            return found_tile.reward_east
-        elif found_tile.tile_type == TileType.GOAL:
-            return found_tile.reward_east
-        elif found_tile.tile_type == TileType.WALL:
-            return 0.0
+        # if s.tile_type == TileType.FORBIDDEN:
+        #     return s.reward_east
+        # if s.tile_type == TileType.GOAL:
+        #     return s.reward_east
 
-        left = (1 - self.learning_rate) * found_tile.get_q(action)
+        left = (1 - self.learning_rate) * s.get_q(action)
 
-        pre_sprime = self.clone(self.iterations + 1)
-        pre_sprime_action = pre_sprime.agent.choose_move(action)
-        sprime = pre_sprime.move_agent(pre_sprime_action)
+        s_clone = self.clone()
+        sprime_action = s_clone.agent.choose_move(action, self.epsilon)
+        sprime = s_clone.move_agent(sprime_action)
+
+        if sprime.agent.x < 0 or sprime.agent.x >= self.cols:
+            print('returning none 3', ITERATION_COUNT)
+            return None
+        if sprime.agent.y < 0 or sprime.agent.y >= self.rows:
+            print('returning none 4', ITERATION_COUNT)
+            return None
+
+        found_sprime_tile = find_tile_by_ind(self.board, self.board[sprime.agent.y][sprime.agent.x].index)
+
+        while found_sprime_tile.tile_type == TileType.WALL:
+            ITERATION_COUNT += 1
+            loop_right = self.learning_rate * \
+                (s.get_reward(action) +
+                 self.discount_rate * max(found_sprime_tile.get_q(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
+            loop_computed_q_value = left + loop_right
+            s.set_q(sprime_action, loop_computed_q_value)
+
+            s_clone = self.clone()
+            sprime_action = s_clone.agent.choose_move(action, self.epsilon)
+            sprime = s_clone.move_agent(sprime_action)
+            # stay in bounds
+            while sprime.agent.x < 0 or sprime.agent.x >= self.cols or sprime.agent.y < 0 or sprime.agent.y >= self.rows:
+                sprime_action = s_clone.agent.choose_move(action, self.epsilon)
+                sprime = self.clone().move_agent(sprime_action)
+                if self.debug:
+                    print(f'----------------- ITERATION {self.iterations} --------------------------')
+                    print('############### Q_VALUES ###############')
+                    print_board(sprime.board, sprime.agent.x, sprime.agent.y, sprime_action)
+                    print('-----------------------------------------------------')
+            found_sprime_tile = find_tile_by_ind(self.board, self.board[sprime.agent.y][sprime.agent.x].index)
 
         # alpha * R(s, a, s') + gamma * max_a(Q(s', a')) <-- q values of all the actions that s' can make
         right = self.learning_rate * \
-            (found_tile.get_reward(action) +
-             self.discount_rate * max(sprime.q_value(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
-        return left + right
+            (s.get_reward(action) +
+             self.discount_rate * max(found_sprime_tile.get_q(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
+        computed_q_value = left + right
+        s.set_q(sprime_action, computed_q_value)
 
-    def clone(self: State, new_iter=0) -> State:
-        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, clone_board(self.board), self.agent.clone(), new_iter)
+        if s.tile_type == TileType.FORBIDDEN or s.tile_type == TileType.GOAL:
+            print('returning none 5')
+            return None
+        else:
+            sprime.q_value(sprime_action)
+
+    def clone(self: State) -> State:
+        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, self.board, self.agent.clone())
 
     def move_agent(self: State, action: AgentAction) -> State:
         self.agent = self.agent.simulate_input(action)
@@ -375,6 +430,8 @@ class State:
 
 def main(inp: bool = False):
     if inp:
+        global ITERATION_COUNT
+        ITERATION_COUNT = 0
         parsed_input = parse_input(input())
     else:
         for each_test_case in test_cases:
@@ -382,6 +439,7 @@ def main(inp: bool = False):
             board_solver = State()
             apply_input_to_board(board_solver.board, parsed_input)
             board_solver.learn()
+            break
 
 
 if __name__ == '__main__':
