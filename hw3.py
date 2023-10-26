@@ -245,8 +245,7 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
         q_bottoms.append(row_bottoms)
     q_prints = []
     for i in range(len(q_tops)):
-        q_prints.append(f'{"\t".join(q_tops[i])}\n{
-                        "\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
+        q_prints.append(f'{"\t".join(q_tops[i])}\n{"\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
     q_output = '\n\n'.join(q_prints)
     print(q_output)
 
@@ -256,15 +255,13 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
     for each_row in board:
         row_tops = [f'\t  {x.reward_north}\t' for x in each_row]
         r_tops.append(row_tops)
-        row_middles = [f'\t{x.reward_west} {
-            x.reward_east}\t' for x in each_row]
+        row_middles = [f'\t{x.reward_west} {x.reward_east}\t' for x in each_row]
         r_middles.append(row_middles)
         row_bottoms = [f'\t  {x.reward_south}\t' for x in each_row]
         r_bottoms.append(row_bottoms)
     r_prints = []
     for i in range(len(r_tops)):
-        r_prints.append(f'{"\t".join(r_tops[i])}\n{
-                        "".join(r_middles[i])}\n{"\t".join(r_bottoms[i])}')
+        r_prints.append(f'{"\t".join(r_tops[i])}\n{"".join(r_middles[i])}\n{"\t".join(r_bottoms[i])}')
     r_output = '\n\n'.join(r_prints)
     print("####################################")
     print("################################### REWARDS ###################################")
@@ -276,9 +273,17 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> Non
     y = 0
     for each_row in board:
         sub_row = []
-        for i in range(len(each_row)):
-            if y == agent_y and agent_x == i:
+        for ind, each_cell in enumerate(each_row):
+            if y == agent_y and agent_x == ind:
                 sub_row.append('[A]\t')
+            elif each_cell.tile_type == TileType.FORBIDDEN:
+                sub_row.append('[X]\t')
+            elif each_cell.tile_type == TileType.WALL:
+                sub_row.append('[W]\t')
+            elif each_cell.tile_type == TileType.GOAL:
+                sub_row.append('[G]\t')
+            elif each_cell.tile_type == TileType.START:
+                sub_row.append('[S]\t')
             else:
                 sub_row.append('[ ]\t')
         board_output.append(sub_row)
@@ -312,7 +317,7 @@ class State:
             self.agent = agent
         self.rows = rows
         self.cols = cols
-        self.debug = True
+        self.debug = False
 
     def q_value(self: State, action: AgentAction) -> float:
         # Q(s,a) is 0 initially
@@ -336,10 +341,16 @@ class State:
             return found_tile.reward_east
         elif found_tile.tile_type == TileType.GOAL:
             return found_tile.reward_east
+        elif found_tile.tile_type == TileType.WALL:
+            return 0.0
 
         left = (1 - self.learning_rate) * found_tile.get_q(action)
 
-        sprime = self.clone(self.iterations + 1).move_agent(action)
+        pre_sprime = self.clone(self.iterations + 1)
+        pre_sprime_action = pre_sprime.agent.choose_move(action)
+        sprime = pre_sprime.move_agent(pre_sprime_action)
+
+        # alpha * R(s, a, s') + gamma * max_a(Q(s', a')) <-- q values of all the actions that s' can make
         right = self.learning_rate * \
             (found_tile.get_reward(action) +
              self.discount_rate * max(sprime.q_value(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
