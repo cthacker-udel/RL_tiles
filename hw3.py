@@ -7,7 +7,7 @@ random.seed(1)
 
 """
 [ ] - Implement basic board functionality (placing tiles where they need to be)
-[ ] - Write test case suite for automated testing every run through
+[X] - Write test case suite for automated testing every run through
 [ ] - Implement beginning of Q-Value algorithm (early structure)
 [ ] - Test final product
 """
@@ -27,13 +27,6 @@ test_case_7 = ["13 11 16 5 p", "1\tright\n2\tup\n3\tup\n4\tup\n5\twall-square\n6
 test_case_8 = ["13 11 7 15 p", "1\tup\n2\tup\n3\tright\n4\tup\n5\tup\n6\tup\n7\tforbid\n8\tup\n9\tup\n10\tright\n11\tgoal\n12\tleft\n13\tgoal\n14\tleft\n15\twall-square\n16\tdown\n"]
 test_cases = [test_case_1, test_case_2, test_case_3, test_case_4,
               test_case_5, test_case_6, test_case_7, test_case_8]
-
-# endregion
-
-# region Constants
-
-START_IND = 2
-ITERATION_COUNT = 0
 
 # endregion
 
@@ -61,6 +54,15 @@ class AgentAction(Enum):
 
 # endregion
 
+# region Constants
+
+
+START_IND = 2
+ITERATION_COUNT = 0
+ACTIONS = [AgentAction.UP, AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]
+
+# endregion
+
 # region Helper Classes
 
 
@@ -70,14 +72,9 @@ class BoardTile:
         self.y = y
         self.index: int = index
         self.tile_type: TileType = tile_type
-        self.q_north = 0  # up
-        self.q_east = 0  # right
-        self.q_south = 0  # down
-        self.q_west = 0  # left
-        self.reward_north = -0.1
-        self.reward_east = -0.1
-        self.reward_south = -0.1
-        self.reward_west = -0.1
+        self.q_north, self.q_east, self.q_south, self.q_west = 0, 0, 0, 0
+        self.reward_north, self.reward_east, self.reward_south, self.reward_west = -0.1, -0.1, -0.1, -0.1
+        self.is_terminal = False
 
     def get_reward(self: BoardTile, action: AgentAction):
         if action == AgentAction.DOWN:
@@ -111,18 +108,8 @@ class BoardTile:
         elif action == AgentAction.RIGHT:
             self.q_east = value
 
-    def clone(self: BoardTile) -> BoardTile:
-        cloned_tile = BoardTile(self.x, self.y, self.index, self.tile_type)
-        cloned_tile.q_north = self.q_north
-        cloned_tile.q_south = self.q_south
-        cloned_tile.q_east = self.q_east
-        cloned_tile.q_west = self.q_west
-        cloned_tile.reward_north = self.reward_north
-        cloned_tile.reward_south = self.reward_south
-        cloned_tile.reward_east = self.reward_east
-        cloned_tile.reward_west = self.reward_west
-
-        return cloned_tile
+    def get_all_q(self: BoardTile) -> list[float]:
+        return [self.q_east, self.q_west, self.q_north, self.q_south]
 
 
 class ParsedInput:
@@ -148,36 +135,20 @@ class ParsedInput:
             return TileType.NORMAL
 
 
+def chooses_random(epsilon: float | int = 0.5) -> bool:
+    rand_value = random.random()
+    curr_policy = 1 - epsilon
+    if rand_value <= curr_policy:
+        return False
+
+    return True
+
+
 class Agent:
     def __init__(self: Agent, x=0, y=0, ind=0):
         self.x = x
         self.y = y
         self.ind = ind
-        self.moves = [AgentAction.UP, AgentAction.DOWN,
-                      AgentAction.LEFT, AgentAction.RIGHT]
-
-    def choose_move(self: Agent, policy: AgentAction, epsilon: float | int = 0.5):
-        rand_value = random.random()
-        curr_policy = 1 - epsilon
-        if rand_value <= curr_policy:
-            # choose to move randomly
-            return policy
-
-        return random.choice(self.moves)
-
-    def clone(self: Agent):
-        return Agent(self.x, self.y, self.ind)
-
-    def simulate_input(self: Agent, action: AgentAction) -> Agent:
-        # returns the row
-        if action == AgentAction.UP:
-            return Agent(self.x, self.y + 1)
-        elif action == AgentAction.DOWN:
-            return Agent(self.x, self.y - 1)
-        elif action == AgentAction.LEFT:
-            return Agent(self.x - 1, self.y)
-        # RIGHT
-        return Agent(self.x + 1, self.y)
 
 # endregion
 
@@ -196,10 +167,6 @@ def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
     return board
 
 
-def stringify_agent_action(action: AgentAction) -> str:
-    return 'EAST' if action == AgentAction.RIGHT else "WEST" if action == AgentAction.LEFT else "DOWN" if action == AgentAction.UP else "UP"
-
-
 def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput) -> list[list[BoardTile]]:
     for each_row in board:
         for each_tile in each_row:
@@ -208,9 +175,13 @@ def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput
             each_tile.tile_type = tile_classification
             if tile_classification == TileType.GOAL:
                 each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = 100, 100, 100, 100
+                each_tile.q_west, each_tile.q_east, each_tile.q_north, each_tile.q_south = 100, 100, 100, 100
+                each_tile.is_terminal = True
             elif tile_classification == TileType.FORBIDDEN:
                 each_tile.reward_west, each_tile.reward_east, each_tile.reward_north, each_tile.reward_south = - \
                     100, -100, -100, -100
+                each_tile.q_west, each_tile.q_east, each_tile.q_north, each_tile.q_south = -100, -100, -100, -100
+                each_tile.is_terminal = True
     return board
 
 
@@ -233,17 +204,68 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
     raise ValueError("Tile index does not exist")
 
 
-def clone_board(board: list[list[BoardTile]]) -> list[list[BoardTile]]:
-    cloned_board: list[list[BoardTile]] = []
+def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, curr_x: int, curr_y: int) -> BoardTile:
+    if action == AgentAction.DOWN:
+        new_y = curr_y - 1
+        if new_y == -1:
+            raise Exception("Out of bounds")
+
+        future_piece = board[new_y][curr_x]
+
+        if future_piece.tile_type == TileType.WALL:
+            raise Exception("Hit wall")
+
+        return future_piece
+
+    if action == AgentAction.UP:
+
+        future_piece = board[curr_y + 1][curr_x]
+
+        if future_piece.tile_type == TileType.WALL:
+            raise Exception("Hit wall")
+
+        return future_piece
+
+    if action == AgentAction.LEFT:
+        new_x = curr_x - 1
+        if new_x == -1:
+            raise Exception("Out of bounds")
+
+        future_piece = board[curr_y][curr_x - 1]
+
+        if future_piece.tile_type == TileType.WALL:
+            raise Exception("Hit wall")
+
+        return future_piece
+
+    future_piece = board[curr_y][curr_x + 1]
+
+    if future_piece.tile_type == TileType.WALL:
+        raise Exception("Hit wall")
+
+    # right
+    return future_piece
+
+
+def print_q_values(board: list[list[BoardTile]]) -> None:
+    q_tops = []
+    q_middles = []
+    q_bottoms = []
     for each_row in board:
-        sub_row = []
-        for each_cell in each_row:
-            sub_row.append(each_cell.clone())
-        cloned_board.append(sub_row)
-    return cloned_board
+        row_tops = [f' {round(x.q_north, 2)} ' for x in each_row]
+        q_tops.append(row_tops)
+        row_middles = [f'{round(x.q_west, 2)} {round(x.q_east, 2)}' for x in each_row]
+        q_middles.append(row_middles)
+        row_bottoms = [f' {round(x.q_south, 2)} ' for x in each_row]
+        q_bottoms.append(row_bottoms)
+    q_prints = []
+    for i in range(len(q_tops)):
+        q_prints.append(f'{"\t".join(q_tops[i])}\n{"\t".join(q_middles[i])}\n{"\t".join(q_bottoms[i])}')
+    q_output = '\n\n'.join(q_prints)
+    print(q_output)
 
 
-def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int, action: AgentAction) -> None:
+def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> None:
     q_tops = []
     q_middles = []
     q_bottoms = []
@@ -260,26 +282,7 @@ def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int, action
     q_output = '\n\n'.join(q_prints)
     print(q_output)
 
-    r_tops = []
-    r_middles = []
-    r_bottoms = []
-    for each_row in board:
-        row_tops = [f'\t  {x.reward_north}\t' for x in each_row]
-        r_tops.append(row_tops)
-        row_middles = [f'\t{x.reward_west} {x.reward_east}\t' for x in each_row]
-        r_middles.append(row_middles)
-        row_bottoms = [f'\t  {x.reward_south}\t' for x in each_row]
-        r_bottoms.append(row_bottoms)
-    r_prints = []
-    for i in range(len(r_tops)):
-        r_prints.append(f'{"\t".join(r_tops[i])}\n{"".join(r_middles[i])}\n{"\t".join(r_bottoms[i])}')
-    r_output = '\n\n'.join(r_prints)
-    print("####################################")
-    print("################################### REWARDS #############################################")
-    print(r_output)
-    print("#########################################################################################")
-
-    print(f"################## BOARD [Agent({agent_x, agent_y, stringify_agent_action(action)})] ###################")
+    print(f"################## BOARD [Agent({agent_x, agent_y})] ###################")
     board_output = []
     y = 0
     for each_row in board:
@@ -323,106 +326,65 @@ class State:
         self.max_iter = max_iter
         if agent is None:
             found_start_tile = find_tile_by_ind(self.board, START_IND)
-            self.agent = Agent(found_start_tile.x, found_start_tile.y)
+            self.agent = Agent(found_start_tile.x, found_start_tile.y, found_start_tile.index)
         else:
             self.agent = agent
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = True
+        self.debug = False
 
-    def q_value(self: State, action: AgentAction) -> None:
+    def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
 
         global ITERATION_COUNT
         ITERATION_COUNT += 1
-        if ITERATION_COUNT >= self.max_iter:
-            self.epsilon = 0
+        while ITERATION_COUNT < (self.max_iter + 1):
+            if ITERATION_COUNT >= self.max_iter:
+                self.epsilon = 0
 
-        if self.debug:
-            print(f'----------------- ITERATION {self.iterations} --------------------------')
-            print('############### Q_VALUES ###############')
-            print_board(self.board, self.agent.x, self.agent.y, action)
-            print('-----------------------------------------------------')
-            # time.sleep(0.5)
-
-        if self.agent.x < 0 or self.agent.x >= self.cols:
-            print('return 1')
-            return None
-        elif self.agent.y < 0 or self.agent.y >= self.rows:
-            print('return 2')
-            return None
-
-        s = find_tile_by_ind(
-            self.board, self.board[self.agent.y][self.agent.x].index)
-
-        # if s.tile_type == TileType.FORBIDDEN:
-        #     return s.reward_east
-        # if s.tile_type == TileType.GOAL:
-        #     return s.reward_east
-
-        left = (1 - self.learning_rate) * s.get_q(action)
-
-        s_clone = self.clone()
-        sprime_action = s_clone.agent.choose_move(action, self.epsilon)
-        sprime = s_clone.move_agent(sprime_action)
-
-        if sprime.agent.x < 0 or sprime.agent.x >= self.cols:
-            print('returning none 3', ITERATION_COUNT)
-            return None
-        if sprime.agent.y < 0 or sprime.agent.y >= self.rows:
-            print('returning none 4', ITERATION_COUNT)
-            return None
-
-        found_sprime_tile = find_tile_by_ind(self.board, self.board[sprime.agent.y][sprime.agent.x].index)
-
-        while found_sprime_tile.tile_type == TileType.WALL:
-            ITERATION_COUNT += 1
-            loop_right = self.learning_rate * \
-                (s.get_reward(action) +
-                 self.discount_rate * max(found_sprime_tile.get_q(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
-            loop_computed_q_value = left + loop_right
-            s.set_q(sprime_action, loop_computed_q_value)
-
-            s_clone = self.clone()
-            sprime_action = s_clone.agent.choose_move(action, self.epsilon)
-            sprime = s_clone.move_agent(sprime_action)
-            # stay in bounds
-            while sprime.agent.x < 0 or sprime.agent.x >= self.cols or sprime.agent.y < 0 or sprime.agent.y >= self.rows:
-                sprime_action = s_clone.agent.choose_move(action, self.epsilon)
-                sprime = self.clone().move_agent(sprime_action)
+            current_tile = find_tile_by_ind(self.board, START_IND)
+            while not current_tile.is_terminal:
                 if self.debug:
                     print(f'----------------- ITERATION {self.iterations} --------------------------')
                     print('############### Q_VALUES ###############')
-                    print_board(sprime.board, sprime.agent.x, sprime.agent.y, sprime_action)
+                    print_board(self.board, self.agent.x, self.agent.y)
                     print('-----------------------------------------------------')
-            found_sprime_tile = find_tile_by_ind(self.board, self.board[sprime.agent.y][sprime.agent.x].index)
 
-        # alpha * R(s, a, s') + gamma * max_a(Q(s', a')) <-- q values of all the actions that s' can make
-        right = self.learning_rate * \
-            (s.get_reward(action) +
-             self.discount_rate * max(found_sprime_tile.get_q(x) for x in [AgentAction.UP, AgentAction.DOWN, AgentAction.LEFT, AgentAction.RIGHT]))
-        computed_q_value = left + right
-        s.set_q(sprime_action, computed_q_value)
+                chosen_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
+                for each_action in [AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]:
+                    old_count = chosen_action[0]
+                    chosen_action[0] = max(chosen_action[0], current_tile.get_q(each_action))
+                    if chosen_action[0] >= old_count:
+                        chosen_action[1] = each_action
 
-        if s.tile_type == TileType.FORBIDDEN or s.tile_type == TileType.GOAL:
-            print('returning none 5')
-            return None
-        else:
-            sprime.q_value(sprime_action)
+                random_choice = chooses_random(self.epsilon)
 
-    def clone(self: State) -> State:
-        return State(self.rows, self.cols, self.living_reward, self.discount_rate, self.learning_rate, self.max_iter, self.board, self.agent.clone())
+                if random_choice:
+                    random_action = random.choice(ACTIONS)
+                    chosen_action = [current_tile.get_q(random_action), random_action]
 
-    def move_agent(self: State, action: AgentAction) -> State:
-        self.agent = self.agent.simulate_input(action)
-        return self
+                try:
+                    new_q_value = current_tile.get_q(chosen_action[1])
+                    future_tile = simulate_move_on_board(self.board, chosen_action[1], self.agent.x, self.agent.y)
+                    discount_value = self.discount_rate * \
+                        (max(future_tile.get_all_q()) - current_tile.get_q(chosen_action[1]))
+                    new_q_value += self.learning_rate * (current_tile.get_reward(chosen_action[1]) + discount_value)
+                    current_tile.set_q(chosen_action[1], new_q_value)
+                    # set the q, change current tile
+                    current_tile = future_tile
+                    self.agent.x = future_tile.x
+                    self.agent.y = future_tile.y
+                    self.agent.ind = future_tile.index
+                except:
+                    current_tile.set_q(chosen_action[1], current_tile.get_q(
+                        chosen_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(chosen_action[1])))
+
+                ITERATION_COUNT += 1
+                print(ITERATION_COUNT)
 
     def learn(self: State) -> None:
-        self.q_value(AgentAction.UP)
-        self.q_value(AgentAction.DOWN)
-        self.q_value(AgentAction.RIGHT)
-        self.q_value(AgentAction.LEFT)
+        self.q_value()
 
 
 # endregion
@@ -439,6 +401,7 @@ def main(inp: bool = False):
             board_solver = State()
             apply_input_to_board(board_solver.board, parsed_input)
             board_solver.learn()
+            print_q_values(board_solver.board)
             break
 
 
