@@ -337,51 +337,50 @@ class State:
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
 
-        global ITERATION_COUNT
-        ITERATION_COUNT += 1
-        while ITERATION_COUNT < (self.max_iter + 1):
-            if ITERATION_COUNT >= self.max_iter:
-                self.epsilon = 0
-
+        iteration_count = 0
+        while self.epsilon != 0:
             current_tile = find_tile_by_ind(self.board, START_IND)
             while not current_tile.is_terminal:
+                if iteration_count >= self.max_iter:
+                    self.epsilon = 0
                 if self.debug:
                     print(f'----------------- ITERATION {self.iterations} --------------------------')
                     print('############### Q_VALUES ###############')
                     print_board(self.board, self.agent.x, self.agent.y)
                     print('-----------------------------------------------------')
 
-                chosen_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
-                for each_action in [AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]:
-                    old_count = chosen_action[0]
-                    chosen_action[0] = max(chosen_action[0], current_tile.get_q(each_action))
-                    if chosen_action[0] >= old_count:
-                        chosen_action[1] = each_action
+                q_and_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
+                for each_action in [AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]:
+                    old_count = q_and_action[0]
+                    cur_q = current_tile.get_q(each_action)
+                    if cur_q > old_count:
+                        q_and_action[1] = each_action
+                        q_and_action[0] = cur_q
 
                 random_choice = chooses_random(self.epsilon)
 
                 if random_choice:
                     random_action = random.choice(ACTIONS)
-                    chosen_action = [current_tile.get_q(random_action), random_action]
+                    q_and_action = [current_tile.get_q(random_action), random_action]
 
                 try:
-                    new_q_value = current_tile.get_q(chosen_action[1])
-                    future_tile = simulate_move_on_board(self.board, chosen_action[1], self.agent.x, self.agent.y)
+                    new_q_value = current_tile.get_q(q_and_action[1])
+                    future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
                     discount_value = self.discount_rate * \
-                        (max(future_tile.get_all_q()) - current_tile.get_q(chosen_action[1]))
-                    new_q_value += self.learning_rate * (current_tile.get_reward(chosen_action[1]) + discount_value)
-                    current_tile.set_q(chosen_action[1], new_q_value)
+                        (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
+                    new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+                    current_tile.set_q(q_and_action[1], new_q_value)
                     # set the q, change current tile
                     current_tile = future_tile
                     self.agent.x = future_tile.x
                     self.agent.y = future_tile.y
                     self.agent.ind = future_tile.index
                 except:
-                    current_tile.set_q(chosen_action[1], current_tile.get_q(
-                        chosen_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(chosen_action[1])))
+                    current_tile.set_q(q_and_action[1], current_tile.get_q(
+                        q_and_action[1]) + self.learning_rate * (self.living_reward - current_tile.get_q(q_and_action[1])))
 
-                ITERATION_COUNT += 1
-                print(ITERATION_COUNT)
+                iteration_count += 1
+                print(iteration_count)
 
     def learn(self: State) -> None:
         self.q_value()
@@ -402,7 +401,6 @@ def main(inp: bool = False):
             apply_input_to_board(board_solver.board, parsed_input)
             board_solver.learn()
             print_q_values(board_solver.board)
-            break
 
 
 if __name__ == '__main__':
