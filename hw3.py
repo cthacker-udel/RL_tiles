@@ -396,14 +396,14 @@ class State:
                     new_q_value = current_tile.get_q(q_and_action[1])
                     future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
 
-                    discount_value = self.discount_rate * max(future_tile.get_all_q())
-                    right_value = self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
-                    left_value = (1 - self.learning_rate) * new_q_value
-                    new_q_value = left_value + right_value
+                    # discount_value = self.discount_rate * max(future_tile.get_all_q())
+                    # right_value = self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+                    # left_value = (1 - self.learning_rate) * new_q_value
+                    # new_q_value = left_value + right_value
 
-                    # discount_value = self.discount_rate * \
-                    #     (max(future_tile.get_all_q()) - current_tile.get_q(q_and_action[1]))
-                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+                    discount_value = current_tile.get_reward(q_and_action[1]) + ((self.discount_rate *
+                                                                                 max(future_tile.get_all_q())) - current_tile.get_q(q_and_action[1]))
+                    new_q_value += (self.learning_rate * discount_value)
 
                     current_tile.set_q(q_and_action[1], new_q_value)
 
@@ -412,24 +412,26 @@ class State:
                     self.agent.y = future_tile.y
                     self.agent.ind = future_tile.index
                 except Exception as ex:
-                    left_value = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
-                    right_value = self.learning_rate * self.living_reward
-                    new_q_value = left_value + right_value
+                    # left_value = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
+                    # right_value = self.learning_rate * self.living_reward
+                    # new_q_value = left_value + right_value
 
-                    # new_q_value = current_tile.get_q(q_and_action[1])
-                    # discount_value = self.discount_rate * (-current_tile.get_q(q_and_action[1]))
-                    # new_q_value += self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
+                    new_q_value = current_tile.get_q(q_and_action[1])
+
+                    discount_value = (current_tile.get_reward(q_and_action[1]) - current_tile.get_q(q_and_action[1]))
+                    new_q_value += (self.learning_rate * discount_value)
 
                     current_tile.set_q(q_and_action[1], new_q_value)
 
                 if current_tile.is_terminal:
-                    left_part = (1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
-                    right_part = self.learning_rate * current_tile.get_reward(AgentAction.UP)
-                    new_q_value = left_part + right_part
+                    # left_part = (1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
+                    # right_part = self.learning_rate * current_tile.get_reward(AgentAction.UP)
+                    # new_q_value = left_part + right_part
 
-                    # new_q_value = current_tile.get_q(AgentAction.UP)
-                    # discount_value = self.discount_rate * (-current_tile.get_q(AgentAction.UP))
-                    # new_q_value += self.learning_rate * (current_tile.get_reward(AgentAction.UP) + discount_value)
+                    new_q_value = current_tile.get_q(AgentAction.UP)
+
+                    discount_value = (current_tile.get_reward(AgentAction.UP) - current_tile.get_q(AgentAction.UP))
+                    new_q_value += (self.learning_rate * discount_value)
 
                     current_tile.set_all_q(new_q_value)
                 iteration_count += 1
