@@ -79,24 +79,24 @@ class BoardTile:
 
     def get_reward(self: BoardTile, action: AgentAction):
         if action == AgentAction.DOWN:
-            return self.reward_north
-        if action == AgentAction.UP:
             return self.reward_south
+        if action == AgentAction.UP:
+            return self.reward_north
         if action == AgentAction.RIGHT:
             return self.reward_east
 
-        # left
+        # AgentAction.LEFT
         return self.reward_west
 
     def get_q(self: BoardTile, action: AgentAction):
         if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
-            return self.q_north
-        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
             return self.q_south
+        elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
+            return self.q_north
         elif action == AgentAction.RIGHT:
             return self.q_east
 
-        # moving left
+        # AgentAction.LEFT
         return self.q_west
 
     def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
@@ -181,8 +181,9 @@ class Agent:
 
 def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
     board: list[list[BoardTile]] = []
-    ind = 1
+    starting_ranges = [13, 9, 5, 1]
     for i in range(rows):
+        ind = starting_ranges[i]
         sub_row = []
         for j in range(cols):
             sub_row.append(BoardTile(j, i, ind))
@@ -228,9 +229,7 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
 
 def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, curr_x: int, curr_y: int) -> BoardTile:
     if action == AgentAction.DOWN:
-        new_y = curr_y + 1  # in terms of the board being flipped, the directions are flipped
-        if new_y == -1:
-            raise Exception("Out of bounds")
+        new_y = curr_y + 1
 
         future_piece = board[new_y][curr_x]
 
@@ -240,35 +239,36 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
         return future_piece
 
     if action == AgentAction.UP:
-
         new_y = curr_y - 1
-        future_piece = board[curr_y - 1][curr_x]  # in terms of the board being flipped, the directions are flipped
-        if new_y == -1:
-            raise Exception("Out of bounds")
 
-        if future_piece.tile_type == TileType.WALL:
-            raise Exception("Hit wall")
+        future_piece = board[curr_y - 1][curr_x]  # in terms of the board being flipped, the directions are flipped
+
+        # IS WALL OR OUT OF BOUNDS
+        if future_piece.tile_type == TileType.WALL or new_y == -1:
+            raise Exception("Hit wall or Out of Bounds")
 
         return future_piece
 
     if action == AgentAction.LEFT:
         new_x = curr_x - 1
-        if new_x == -1:
-            raise Exception("Out of bounds")
 
         future_piece = board[curr_y][curr_x - 1]
 
-        if future_piece.tile_type == TileType.WALL:
-            raise Exception("Hit wall")
+        # IS WALL OR OUT OF BOUNDS
+        if future_piece.tile_type == TileType.WALL or new_x == -1:
+            raise Exception("Hit wall or Out of Bounds")
 
         return future_piece
 
-    future_piece = board[curr_y][curr_x + 1]
+    new_x = curr_x + 1
 
+    future_piece = board[curr_y][new_x]
+
+    # IS WALL
     if future_piece.tile_type == TileType.WALL:
         raise Exception("Hit wall")
 
-    # right
+    # AgentAction.RIGHT
     return future_piece
 
 
@@ -369,7 +369,7 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = True
+        self.debug = False
 
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
@@ -383,6 +383,8 @@ class State:
             while not current_tile.is_terminal:
                 if iteration_count > self.max_iter:
                     self.epsilon = 0
+                    self.debug = True
+
                 if self.debug:
                     print(f'----------------- ITERATION {self.iterations} --------------------------')
                     print('############### Q_VALUES ###############')
@@ -433,8 +435,8 @@ class State:
                 if current_tile.is_terminal:
                     current_tile.set_all_q(((1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
                                             ) + (self.learning_rate * current_tile.get_reward(AgentAction.UP)))
-            iteration_count += 1
-            print(iteration_count)
+                iteration_count += 1
+                print(iteration_count)
 
     def learn(self: State) -> None:
         self.q_value()
