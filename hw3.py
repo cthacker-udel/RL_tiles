@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional, Self
+from typing import Optional, Callable
 import time
 import random
 random.seed(1)
@@ -60,6 +60,7 @@ class AgentAction(Enum):
 START_IND = 2
 ITERATION_COUNT = 0
 ACTIONS = [AgentAction.UP, AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]
+CLOCKWISE_POLICY_ORDER = [AgentAction.UP, AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]
 
 # endregion
 
@@ -121,6 +122,10 @@ class ParsedInput:
         self.output_format: OutputFormat = OutputFormat.PRINT if output_format == "p" else OutputFormat.OPTIMAL_Q
         self.q_ind = q_ind
         self.start_ind = start_ind
+        self.direction_to_string: Callable[[
+            AgentAction], str] = lambda x: 'up' if x == AgentAction.UP else 'down' if x == AgentAction.DOWN else 'right' if x == AgentAction.RIGHT else 'left'
+        self.tile_type_to_string: Callable[[
+            TileType], str] = lambda x: 'wall-square' if x == TileType.WALL else 'forbid' if x == TileType.FORBIDDEN else 'goal'
 
     def classify_tile_by_ind(self: ParsedInput, ind: int) -> TileType:
         if ind == self.goal_1_ind or ind == self.goal_2_ind:
@@ -133,6 +138,31 @@ class ParsedInput:
             return TileType.START
         else:
             return TileType.NORMAL
+
+    def print_policies(self: ParsedInput, board: list[list[BoardTile]]) -> None:
+        board_tiles: dict[int, str] = {}
+        for each_row in board:
+            for each_tile in each_row:
+                if each_tile.tile_type in (TileType.FORBIDDEN, TileType.GOAL, TileType.WALL):
+                    board_tiles[each_tile.index] = self.tile_type_to_string(each_tile.tile_type)
+                else:
+                    max_policy = [round(each_tile.get_q(AgentAction.UP), 2), AgentAction.UP]
+                    for each_direction in CLOCKWISE_POLICY_ORDER:
+                        curr_q = round(each_tile.get_q(each_direction), 2)
+                        if curr_q > max_policy[0]:
+                            max_policy[0] = curr_q
+                            max_policy[1] = each_direction
+                    board_tiles[each_tile.index] = self.direction_to_string(max_policy[1])
+        joined_strings = []
+        for each_key in board_tiles:
+            joined_strings.append(f'{each_key}\t{board_tiles[each_key]}')
+        print('\n'.join(joined_strings))
+
+    def print_q_values(self: ParsedInput, tile: BoardTile) -> None:
+        directions = []
+        for each_direction in CLOCKWISE_POLICY_ORDER:
+            directions.append(f'{self.direction_to_string(each_direction)}\t{round(tile.get_q(each_direction), 2)}')
+        print('\n'.join(directions))
 
 
 def chooses_random(epsilon: float | int = 0.5) -> bool:
@@ -344,7 +374,7 @@ class State:
             self.agent.y = current_tile.y
             self.agent.ind = current_tile.index
             while not current_tile.is_terminal:
-                if iteration_count >= self.max_iter:
+                if iteration_count > self.max_iter:
                     self.epsilon = 0
                 if self.debug:
                     print(f'----------------- ITERATION {self.iterations} --------------------------')
@@ -403,7 +433,10 @@ def main(inp: bool = False):
             board_solver = State()
             apply_input_to_board(board_solver.board, parsed_input)
             board_solver.learn()
-            print_q_values(board_solver.board)
+            if parsed_input.output_format == OutputFormat.PRINT:
+                parsed_input.print_policies(board_solver.board)
+            elif parsed_input.q_ind is not None and parsed_input.output_format == OutputFormat.OPTIMAL_Q:
+                parsed_input.print_q_values(find_tile_by_ind(board_solver.board, parsed_input.q_ind))
 
 
 if __name__ == '__main__':
