@@ -74,7 +74,7 @@ class BoardTile:
         self.index: int = index
         self.tile_type: TileType = tile_type
         self.q_north, self.q_east, self.q_south, self.q_west = 0, 0, 0, 0
-        self.reward_north, self.reward_east, self.reward_south, self.reward_west = -0.1, -0.1, -0.1, -0.1
+        self.reward_north, self.reward_east, self.reward_south, self.reward_west = 0, 0, 0, 0
         self.is_terminal = False
 
     def get_reward(self: BoardTile, action: AgentAction):
@@ -234,7 +234,7 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
         future_piece = board[new_y][curr_x]
 
         if future_piece.tile_type == TileType.WALL:
-            raise Exception("Hit wall")
+            raise Exception("WALL")
 
         return future_piece
 
@@ -243,9 +243,12 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
         future_piece = board[curr_y - 1][curr_x]  # in terms of the board being flipped, the directions are flipped
 
+        if new_y == -1:
+            raise Exception("OOB")
+
         # IS WALL OR OUT OF BOUNDS
-        if future_piece.tile_type == TileType.WALL or new_y == -1:
-            raise Exception("Hit wall or Out of Bounds")
+        if future_piece.tile_type == TileType.WALL:
+            raise Exception("WALL")
 
         return future_piece
 
@@ -254,9 +257,12 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
         future_piece = board[curr_y][curr_x - 1]
 
+        if new_x == -1:
+            raise Exception("OOB")
+
         # IS WALL OR OUT OF BOUNDS
-        if future_piece.tile_type == TileType.WALL or new_x == -1:
-            raise Exception("Hit wall or Out of Bounds")
+        if future_piece.tile_type == TileType.WALL:
+            raise Exception("WALL")
 
         return future_piece
 
@@ -266,7 +272,7 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
 
     # IS WALL
     if future_piece.tile_type == TileType.WALL:
-        raise Exception("Hit wall")
+        raise Exception("WALL")
 
     # AgentAction.RIGHT
     return future_piece
@@ -356,7 +362,7 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = True
+        self.debug = False
 
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
@@ -396,14 +402,16 @@ class State:
                     new_q_value = current_tile.get_q(q_and_action[1])
                     future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
 
-                    # discount_value = self.discount_rate * max(future_tile.get_all_q())
-                    # right_value = self.learning_rate * (current_tile.get_reward(q_and_action[1]) + discount_value)
-                    # left_value = (1 - self.learning_rate) * new_q_value
-                    # new_q_value = left_value + right_value
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
+                    right_side_reward = (current_tile.get_reward(q_and_action[1]) + self.living_reward)
 
-                    discount_value = current_tile.get_reward(q_and_action[1]) + ((self.discount_rate *
-                                                                                 max(future_tile.get_all_q())) - current_tile.get_q(q_and_action[1]))
-                    new_q_value += (self.learning_rate * discount_value)
+                    right_side_max_q = max(future_tile.get_all_q())
+                    right_side_discounted_max_q = self.discount_rate * right_side_max_q
+
+                    combined_right_side = right_side_discounted_max_q + right_side_reward
+                    right_side = self.learning_rate * combined_right_side
+
+                    new_q_value = left_side + right_side
 
                     current_tile.set_q(q_and_action[1], new_q_value)
 
@@ -416,10 +424,20 @@ class State:
                     # right_value = self.learning_rate * self.living_reward
                     # new_q_value = left_value + right_value
 
+                    curr_reward = current_tile.get_reward(q_and_action[1])
+
+                    if ex.args[0] == "WALL":
+                        curr_reward = -0.1
+
                     new_q_value = current_tile.get_q(q_and_action[1])
 
-                    discount_value = (current_tile.get_reward(q_and_action[1]) - current_tile.get_q(q_and_action[1]))
-                    new_q_value += (self.learning_rate * discount_value)
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
+                    right_side_reward = (curr_reward + self.living_reward)
+
+                    combined_right_side = right_side_reward
+                    right_side = self.learning_rate * combined_right_side
+
+                    new_q_value = left_side + right_side
 
                     current_tile.set_q(q_and_action[1], new_q_value)
 
@@ -428,14 +446,17 @@ class State:
                     # right_part = self.learning_rate * current_tile.get_reward(AgentAction.UP)
                     # new_q_value = left_part + right_part
 
-                    new_q_value = current_tile.get_q(AgentAction.UP)
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
+                    right_side_reward = (current_tile.get_reward(q_and_action[1]) + self.living_reward)
 
-                    discount_value = (current_tile.get_reward(AgentAction.UP) - current_tile.get_q(AgentAction.UP))
-                    new_q_value += (self.learning_rate * discount_value)
+                    combined_right_side = right_side_reward
+                    right_side = self.learning_rate * combined_right_side
+
+                    new_q_value = left_side + right_side
 
                     current_tile.set_all_q(new_q_value)
-                iteration_count += 1
-                print(iteration_count)
+            iteration_count += 1
+            print(iteration_count)
 
     def learn(self: State) -> None:
         self.q_value()
