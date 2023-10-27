@@ -362,7 +362,7 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = False
+        self.debug = True
 
     def q_value(self: State) -> None:
         # Q(s,a) is 0 initially
@@ -384,13 +384,18 @@ class State:
                     print_board(self.board, self.agent.x, self.agent.y)
                     print('-----------------------------------------------------')
 
+                all_equal = len(set([x for x in current_tile.get_all_q()])) == 1
                 q_and_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
-                for each_action in [AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]:
-                    old_count = q_and_action[0]
-                    cur_q = current_tile.get_q(each_action)
-                    if cur_q > old_count:
-                        q_and_action[1] = each_action
-                        q_and_action[0] = cur_q
+                if not all_equal:
+                    for each_action in [AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]:
+                        old_count = q_and_action[0]
+                        cur_q = current_tile.get_q(each_action)
+                        if cur_q > old_count:
+                            q_and_action[1] = each_action
+                            q_and_action[0] = cur_q
+                else:
+                    random_action = random.choice(ACTIONS)
+                    q_and_action = [current_tile.get_q(random_action), random_action]
 
                 random_choice = chooses_random(self.epsilon)
 
