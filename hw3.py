@@ -362,106 +362,99 @@ class State:
         self.rows = rows
         self.cols = cols
         self.epsilon = epsilon
-        self.debug = True
+        self.debug = False  # SET THIS TO FALSE TO DISABLE BOARD PRINTING
+        self.run = True
 
     def q_value(self: State) -> None:
-        # Q(s,a) is 0 initially
+        iteration_count = 0  # start iterations at 0
 
-        iteration_count = 0
-        while self.epsilon != 0:
-            current_tile = find_tile_by_ind(self.board, START_IND)
-            self.agent.x = current_tile.x
-            self.agent.y = current_tile.y
-            self.agent.ind = current_tile.index
-            while not current_tile.is_terminal:
-                if iteration_count > self.max_iter:
-                    self.epsilon = 0
-                    self.debug = True
+        while self.run:  # while convergence is not triggered
+            current_tile = find_tile_by_ind(self.board, START_IND)  # Get the starting tile
+            self.agent.x = current_tile.x  # agent x → starting tile x
+            self.agent.y = current_tile.y  # agent y → starting tile y
+            self.agent.ind = current_tile.index  # agent index → starting tile index
+            while not current_tile.is_terminal:  # while the current tile is not a terminal tile
+                if iteration_count > self.max_iter:  # if the iteration count exceeds the threshold
+                    self.epsilon = 0  # set ε = 0
+                    self.debug = True  # set debug to True (temporary)
+                    break
 
-                if self.debug:
+                if self.debug:  # used for debugging purposes
                     print(f'----------------- ITERATION {self.iterations} --------------------------')
                     print('############### Q_VALUES ###############')
                     print_board(self.board, self.agent.x, self.agent.y)
                     print('-----------------------------------------------------')
 
-                all_equal = len(set([x for x in current_tile.get_all_q()])) == 1
                 q_and_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
-                if not all_equal:
-                    for each_action in [AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]:
-                        old_count = q_and_action[0]
-                        cur_q = current_tile.get_q(each_action)
-                        if cur_q > old_count:
-                            q_and_action[1] = each_action
-                            q_and_action[0] = cur_q
-                else:
-                    random_action = random.choice(ACTIONS)
-                    q_and_action = [current_tile.get_q(random_action), random_action]
 
-                random_choice = chooses_random(self.epsilon)
+                for each_action in [AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]:
+                    old_count = q_and_action[0]
+                    cur_q = current_tile.get_q(each_action)
+                    if cur_q > old_count:
+                        q_and_action[1] = each_action
+                        q_and_action[0] = cur_q
 
-                if random_choice:
-                    random_action = random.choice(ACTIONS)
+                random_choice = chooses_random(self.epsilon)  # execute ε-greedy method
+
+                if random_choice:  # make random choice
+                    random_action = random.choice(ACTIONS)  # randomly choose action
+                    # set q_and_action to [q-value of random action, random action]s
                     q_and_action = [current_tile.get_q(random_action), random_action]
 
                 try:
+                    # get current Q(s, a) which is required for the update
                     new_q_value = current_tile.get_q(q_and_action[1])
-                    future_tile = simulate_move_on_board(self.board, q_and_action[1], self.agent.x, self.agent.y)
+                    future_tile = simulate_move_on_board(
+                        self.board, q_and_action[1], self.agent.x, self.agent.y)  # get s'
 
-                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
-                    right_side_reward = (current_tile.get_reward(q_and_action[1]) + self.living_reward)
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
+                    right_side_inner_reward = (current_tile.get_reward(
+                        q_and_action[1]) + self.living_reward)  # R(s, a, s') + r_living
 
-                    right_side_max_q = max(future_tile.get_all_q())
-                    right_side_discounted_max_q = self.discount_rate * right_side_max_q
+                    right_side_max_q = max(future_tile.get_all_q())  # max_a' Q(s', a')
+                    right_side_discounted_max_q = self.discount_rate * right_side_max_q  # γ * max_a' Q(s', a')
 
-                    combined_right_side = right_side_discounted_max_q + right_side_reward
-                    right_side = self.learning_rate * combined_right_side
+                    combined_right_side = right_side_discounted_max_q + \
+                        right_side_inner_reward  # R(s, a, s') + γ max_a' Q(s', a')
+                    right_side = self.learning_rate * combined_right_side  # α * [R(s, a, s') + γ max_a' Q(s', a')
 
-                    new_q_value = left_side + right_side
+                    new_q_value = left_side + right_side  # (1 - α) * Q(s, a) + α * [R(s, a, s') + γ max_a' Q(s', a')
 
+                    # Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + γ max_a' Q(s', a')
                     current_tile.set_q(q_and_action[1], new_q_value)
 
-                    current_tile = future_tile
-                    self.agent.x = future_tile.x
-                    self.agent.y = future_tile.y
-                    self.agent.ind = future_tile.index
+                    current_tile = future_tile  # move current tile to s'
+                    self.agent.x = future_tile.x  # move agent position from x → s' x
+                    self.agent.y = future_tile.y  # move agent position from y → s' y
+                    self.agent.ind = future_tile.index  # move agent position from index → s' index
                 except Exception as ex:
-                    # left_value = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
-                    # right_value = self.learning_rate * self.living_reward
-                    # new_q_value = left_value + right_value
 
-                    curr_reward = current_tile.get_reward(q_and_action[1])
-
-                    if ex.args[0] == "WALL":
+                    curr_reward = current_tile.get_reward(q_and_action[1])  # R(s, a, s') = 0
+                    if ex.args[0] == "WALL":  # S' is wall → R(s, a, s') = -0.1
                         curr_reward = -0.1
 
-                    new_q_value = current_tile.get_q(q_and_action[1])
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
 
-                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
-                    right_side_reward = (curr_reward + self.living_reward)
+                    right_side_inner_reward = (curr_reward + self.living_reward)  # (R(s, a, s') + r_living)
+                    right_side = self.learning_rate * right_side_inner_reward  # α * [R(s, a, s') + r_living]
 
-                    combined_right_side = right_side_reward
-                    right_side = self.learning_rate * combined_right_side
-
-                    new_q_value = left_side + right_side
-
+                    new_q_value = left_side + right_side  # (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
+                    # Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
                     current_tile.set_q(q_and_action[1], new_q_value)
 
-                if current_tile.is_terminal:
-                    # left_part = (1 - self.learning_rate) * current_tile.get_q(AgentAction.UP)
-                    # right_part = self.learning_rate * current_tile.get_reward(AgentAction.UP)
-                    # new_q_value = left_part + right_part
+                if current_tile.is_terminal:  # GOAL, max_a' Q(s', a') is 0
+                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
 
-                    left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])
-                    right_side_reward = (current_tile.get_reward(q_and_action[1]) + self.living_reward)
+                    right_side_inner_reward = (current_tile.get_reward(
+                        q_and_action[1]) + self.living_reward)  # R(s, a, s') + r_living
+                    right_side = self.learning_rate * right_side_inner_reward  # α * [R(s, a, s') + r_living]
 
-                    combined_right_side = right_side_reward
-                    right_side = self.learning_rate * combined_right_side
+                    new_q_value = left_side + right_side  # (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
+                    current_tile.set_all_q(new_q_value)  # ∀a Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
 
-                    new_q_value = left_side + right_side
-
-                    current_tile.set_all_q(new_q_value)
-            iteration_count += 1
-            print(iteration_count)
+            iteration_count += 1  # increment iteration
+            print(iteration_count)  # printing (debugging purposes)
+            self.run = self.epsilon != 0  # determines if final run completed (when epsilon is set to 0)
 
     def learn(self: State) -> None:
         self.q_value()
