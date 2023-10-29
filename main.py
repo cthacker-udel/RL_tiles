@@ -166,7 +166,9 @@ class ParsedInput:
                             max_policy[1] = each_direction
                     board_tiles[each_tile.index] = self.direction_to_string(max_policy[1])
         joined_strings = []
-        for each_key in board_tiles:
+
+        sorted_tiles = dict(sorted(board_tiles.items()))
+        for each_key in sorted_tiles:
             joined_strings.append(f'{each_key}\t{board_tiles[each_key]}')
         # print('\n'.join(joined_strings))
 
@@ -490,8 +492,6 @@ class State:
 
 def main(inp: bool = False):
     if inp:
-        global ITERATION_COUNT
-        ITERATION_COUNT = 0
         parsed_input = parse_input(input())
     else:
         test_case = TestCase()
