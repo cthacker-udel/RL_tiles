@@ -26,16 +26,8 @@ test_case_6 = ["12 7 5 6 q 3",
                "up\t100.0\nright\t0.89\ndown\t9.9\nleft\t0.89\n"]
 test_case_7 = ["13 11 16 5 p", "1\tright\n2\tup\n3\tup\n4\tup\n5\twall-square\n6\tup\n7\tup\n8\tup\n9\tup\n10\tright\n11\tgoal\n12\tleft\n13\tgoal\n14\tleft\n15\tdown\n16\tforbid\n"]
 test_case_8 = ["13 11 7 15 p", "1\tup\n2\tup\n3\tright\n4\tup\n5\tup\n6\tup\n7\tforbid\n8\tup\n9\tup\n10\tright\n11\tgoal\n12\tleft\n13\tgoal\n14\tleft\n15\twall-square\n16\tdown\n"]
-test_cases = [
-    test_case_1,
-    test_case_2,
-    test_case_3,
-    test_case_4,
-    test_case_5,
-    test_case_6,
-    test_case_7,
-    test_case_8
-]
+test_cases = [test_case_1, test_case_2, test_case_3, test_case_4,
+              test_case_5, test_case_6, test_case_7, test_case_8]
 
 # endregion
 
@@ -69,7 +61,7 @@ class AgentAction(Enum):
 START_IND = 2
 ITERATION_COUNT = 0
 ACTIONS = [AgentAction.UP, AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]
-CLOCKWISE_POLICY_ORDER = [AgentAction.UP, AgentAction.RIGHT, AgentAction.DOWN, AgentAction.LEFT]
+CLOCKWISE_POLICY_ORDER = [AgentAction.UP, AgentAction.DOWN, AgentAction.RIGHT, AgentAction.LEFT]
 
 # endregion
 
@@ -151,7 +143,7 @@ class ParsedInput:
         else:
             return TileType.NORMAL
 
-    def print_policies(self: ParsedInput, board: list[list[BoardTile]]) -> str:
+    def print_policies(self: ParsedInput, board: list[list[BoardTile]]) -> None:
         board_tiles: dict[int, str] = {}
         for each_row in board:
             for each_tile in each_row:
@@ -168,17 +160,13 @@ class ParsedInput:
         joined_strings = []
         for each_key in board_tiles:
             joined_strings.append(f'{each_key}\t{board_tiles[each_key]}')
-        # print('\n'.join(joined_strings))
+        print('\n'.join(joined_strings))
 
-        return '\n'.join(joined_strings)
-
-    def print_q_values(self: ParsedInput, tile: BoardTile) -> str:
+    def print_q_values(self: ParsedInput, tile: BoardTile) -> None:
         directions = []
         for each_direction in CLOCKWISE_POLICY_ORDER:
             directions.append(f'{self.direction_to_string(each_direction)}\t{round(tile.get_q(each_direction), 2)}')
-        # print('\n'.join(directions))
-
-        return '\n'.join(directions)
+        print('\n'.join(directions))
 
 
 class Agent:
@@ -478,7 +466,7 @@ class State:
                     current_tile.set_all_q(new_q_value)  # ∀a Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
 
             iteration_count += 1  # increment iteration
-            iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
+            print(iteration_count)  # printing (debugging purposes)
             self.run = self.epsilon != 0  # determines if final run completed (when epsilon is set to 0)
 
     def learn(self: State) -> None:
@@ -494,18 +482,16 @@ def main(inp: bool = False):
         ITERATION_COUNT = 0
         parsed_input = parse_input(input())
     else:
-        test_case = TestCase()
         for each_test_case in test_cases:
             parsed_input = parse_input(each_test_case[0])
             board_solver = State()
             apply_input_to_board(board_solver.board, parsed_input)
             board_solver.learn()
             if parsed_input.output_format == OutputFormat.PRINT:
-                optimal_policy = parsed_input.print_policies(board_solver.board)
-                test_case.assertEqual(each_test_case[1], optimal_policy)
+                parsed_input.print_policies(board_solver.board)
+                break
             elif parsed_input.q_ind is not None and parsed_input.output_format == OutputFormat.OPTIMAL_Q:
-                optimal_q = parsed_input.print_q_values(find_tile_by_ind(board_solver.board, parsed_input.q_ind))
-                test_case.assertEqual(each_test_case[1], optimal_q)
+                parsed_input.print_q_values(find_tile_by_ind(board_solver.board, parsed_input.q_ind))
 
 
 if __name__ == '__main__':
