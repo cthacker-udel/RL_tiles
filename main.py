@@ -394,12 +394,13 @@ class State:
         iteration_count = 0  # start iterations at 0
 
         while self.run:  # while convergence is not triggered
+            self.run = self.epsilon != 0  # determines if final run completed (when epsilon is set to 0)
             current_tile = find_tile_by_ind(self.board, START_IND)  # Get the starting tile
             self.agent.x = current_tile.x  # agent x → starting tile x
             self.agent.y = current_tile.y  # agent y → starting tile y
             self.agent.ind = current_tile.index  # agent index → starting tile index
             while not current_tile.is_terminal:  # while the current tile is not a terminal tile
-                if iteration_count > self.max_iter:  # if the iteration count exceeds the threshold
+                if iteration_count > self.max_iter and self.run:  # if the iteration count exceeds the threshold
                     self.epsilon = 0  # set ε = 0
                     self.debug = True  # set debug to True (temporary)
                     break
@@ -432,13 +433,20 @@ class State:
                     future_tile = simulate_move_on_board(
                         self.board, q_and_action[1], self.agent.x, self.agent.y)  # get s'
 
+                    living_reward = self.living_reward
+
+                    if future_tile.is_terminal:
+                        living_reward = 0
+
                     left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
                     right_side_inner_reward = (current_tile.get_reward(
-                        q_and_action[1]) + self.living_reward)  # R(s, a, s') + r_living
+                        q_and_action[1]) + living_reward)  # R(s, a, s') + r_living
 
                     right_side_max_q = max(future_tile.get_all_q())  # max_a' Q(s', a')
+
                     if future_tile.is_terminal:
                         right_side_max_q = 0
+
                     right_side_discounted_max_q = self.discount_rate * right_side_max_q  # γ * max_a' Q(s', a')
 
                     combined_right_side = right_side_discounted_max_q + \
@@ -481,7 +489,6 @@ class State:
 
             iteration_count += 1  # increment iteration
             iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
-            self.run = self.epsilon != 0  # determines if final run completed (when epsilon is set to 0)
 
     def learn(self: State) -> None:
         self.q_value()
