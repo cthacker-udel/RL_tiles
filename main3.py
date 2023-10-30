@@ -430,7 +430,7 @@ class State:
             while not current_tile.is_terminal:  # while the current tile is not a terminal tile
                 if iteration_count > self.max_iter and self.run:  # if the iteration count exceeds the threshold
                     self.epsilon = 0  # set ε = 0
-                    self.debug = True  # set debug to True (temporary)
+                    self.debug = False  # set debug to True (temporary)
                     break
 
                 if self.debug:  # used for debugging purposes
@@ -450,8 +450,8 @@ class State:
                 random_choice = chooses_random(self.epsilon)  # execute ε-greedy method
 
                 living_reward = self.living_reward
-                if current_tile.near_goal:
-                    living_reward = 0
+                # if current_tile.near_goal:
+                #     living_reward = 0
 
                 if random_choice:  # make random choice
                     random_action = random.choice(ACTIONS)  # randomly choose action
@@ -463,6 +463,9 @@ class State:
                     new_q_value = current_tile.get_q(q_and_action[1])
                     future_tile = simulate_move_on_board(
                         self.board, q_and_action[1], self.agent.x, self.agent.y)  # get s'
+
+                    if future_tile.is_terminal:
+                        living_reward = 0
 
                     left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
                     right_side_inner_reward = (current_tile.get_reward(
@@ -496,8 +499,13 @@ class State:
 
                     left_side = (1 - self.learning_rate) * current_tile.get_q(q_and_action[1])  # (1 - α) * Q(s, a)
 
-                    right_side_inner_reward = (curr_reward + living_reward)  # (R(s, a, s') + r_living)
-                    right_side = self.learning_rate * right_side_inner_reward  # α * [R(s, a, s') + r_living]
+                    right_side_discounted_max_q = self.discount_rate * \
+                        max(current_tile.get_all_q())  # γ * max_a' Q(s', a')
+
+                    combined_right_side = living_reward + \
+                        right_side_discounted_max_q  # R(s, a, s') + γ max_a' Q(s', a')
+
+                    right_side = self.learning_rate * combined_right_side  # α * [R(s, a, s') + γ max_a' Q(s', a')
 
                     new_q_value = left_side + right_side  # (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
                     # Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
@@ -514,7 +522,7 @@ class State:
                     current_tile.set_all_q(new_q_value)  # ∀a Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
 
             iteration_count += 1  # increment iteration
-            iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
+            # iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
 
     def learn(self: State) -> None:
         self.q_value()
@@ -526,6 +534,15 @@ class State:
 def main(inp: bool = False):
     if inp:
         parsed_input = parse_input(input())
+        board_solver = State()
+        apply_input_to_board(board_solver.board, parsed_input)
+        board_solver.learn()
+        if parsed_input.output_format == OutputFormat.PRINT:
+            optimal_policy = parsed_input.print_policies(board_solver.board)
+            print(optimal_policy)
+        elif parsed_input.q_ind is not None and parsed_input.output_format == OutputFormat.OPTIMAL_Q:
+            optimal_q = parsed_input.print_q_values(find_tile_by_ind(board_solver.board, parsed_input.q_ind))
+            print(optimal_q)
     else:
         test_case = TestCase()
         for each_test_case in test_cases:
