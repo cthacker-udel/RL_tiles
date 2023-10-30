@@ -197,7 +197,12 @@ class ParsedInput:
     def print_q_values(self, tile: BoardTile) -> str:
         directions = []
         for each_direction in CLOCKWISE_POLICY_ORDER:
-            directions.append(f'{self.direction_to_string(each_direction)}\t{round(tile.get_q(each_direction), 2)}')
+            round_amt = tile.get_q(each_direction)
+            if round_amt == 0.0:
+                round_amt = '0.0'
+            else:
+                round_amt = str(round(round_amt, 2))
+            directions.append(f'{self.direction_to_string(each_direction)}\t{round_amt}')
         # print('\n'.join(directions))
 
         return '\n'.join(directions)
