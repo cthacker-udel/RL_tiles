@@ -1,7 +1,5 @@
-from __future__ import annotations
 from enum import Enum
 from typing import Optional, Callable
-import time
 import random
 from unittest import TestCase
 random.seed(1)
@@ -30,7 +28,7 @@ test_case_9 = ["3 5 7 6 p", "1\tup\n2\tright\n3\tgoal\n4\tup\n5\tgoal\n6\twall-s
 test_case_10 = ["3 5 7 10 p", "1\tup\n2\tright\n3\tgoal\n4\tup\n5\tgoal\n6\tleft\n7\tforbid\n8\tup\n9\tup\n10\twall-square\n11\tup\n12\tup\n13\tup\n14\tup\n15\tup\n16\tup"]
 test_case_11 = ["5 7 6 4 q 2", "up\t-100.0\nright\t9.9\ndown\t0.89\nleft\t9.9"]
 test_case_12 = ["5 7 6 4 p", "1\tup\n2\tright\n3\tup\n4\twall-square\n5\tgoal\n6\tforbid\n7\tgoal\n8\tup\n9\tup\n10\tup\n11\tup\n12\tup\n13\tup\n14\tup\n15\tup\n16\tup"]
-test_case_13 = ["10 6 5 3 q 14", "up\t0.0\nright\t0.0\ndown\t0.0\nleft\t0.0"]
+test_case_13 = ["10 6 5 3 q 14", "up\t0\nright\t0\ndown\t0\nleft\t0"]
 test_case_14 = ["10 6 5 3 q 2", "up\t100.0\nright\t9.9\ndown\t9.9\nleft\t0.89"]
 test_case_15 = ["10 6 5 3 p", "1\tright\n2\tup\n3\twall-square\n4\tup\n5\tforbid\n6\tgoal\n7\tup\n8\tup\n9\tup\n10\tgoal\n11\tup\n12\tup\n13\tup\n14\tup\n15\tup\n16\tup"]
 test_case_16 = ["6 4 5 8 q 2", "up\t100.0\nright\t9.9\ndown\t9.9\nleft\t0.89"]
@@ -98,7 +96,7 @@ CLOCKWISE_POLICY_ORDER = [AgentAction.UP, AgentAction.RIGHT, AgentAction.DOWN, A
 
 
 class BoardTile:
-    def __init__(self: BoardTile, x: int, y: int, index: int = -1, tile_type=TileType.NORMAL) -> None:
+    def __init__(self, x: int, y: int, index: int = -1, tile_type=TileType.NORMAL) -> None:
         self.x = x
         self.y = y
         self.index: int = index
@@ -108,7 +106,7 @@ class BoardTile:
         self.is_terminal = False
         self.near_goal = False
 
-    def get_reward(self: BoardTile, action: AgentAction):
+    def get_reward(self, action: AgentAction):
         if action == AgentAction.DOWN:
             return self.reward_south
         if action == AgentAction.UP:
@@ -119,7 +117,7 @@ class BoardTile:
         # AgentAction.LEFT
         return self.reward_west
 
-    def get_q(self: BoardTile, action: AgentAction):
+    def get_q(self, action: AgentAction):
         if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
             return self.q_south
         elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
@@ -130,7 +128,7 @@ class BoardTile:
         # AgentAction.LEFT
         return self.q_west
 
-    def set_q(self: BoardTile, action: AgentAction, value: float) -> None:
+    def set_q(self, action: AgentAction, value: float) -> None:
         if action == AgentAction.DOWN:  # in terms of the board being flipped, the directions are flipped
             self.q_south = value
         elif action == AgentAction.UP:  # in terms of the board being flipped, the directions are flipped
@@ -140,15 +138,15 @@ class BoardTile:
         elif action == AgentAction.RIGHT:
             self.q_east = value
 
-    def get_all_q(self: BoardTile) -> list[float]:
+    def get_all_q(self):
         return [self.q_east, self.q_west, self.q_north, self.q_south]
 
-    def set_all_q(self: BoardTile, value: float) -> None:
+    def set_all_q(self, value: float) -> None:
         self.q_north, self.q_south, self.q_east, self.q_west = value, value, value, value
 
 
 class ParsedInput:
-    def __init__(self: ParsedInput, start_ind: int, goal_1_ind: int, goal_2_ind: int, forbid_ind: int, wall_ind: int, output_format: str, q_ind: Optional[int] = None):
+    def __init__(self, start_ind: int, goal_1_ind: int, goal_2_ind: int, forbid_ind: int, wall_ind: int, output_format: str, q_ind: Optional[int] = None):
         self.goal_1_ind = goal_1_ind
         self.goal_2_ind = goal_2_ind
         self.forbid_ind = forbid_ind
@@ -161,7 +159,7 @@ class ParsedInput:
         self.tile_type_to_string: Callable[[
             TileType], str] = lambda x: 'wall-square' if x == TileType.WALL else 'forbid' if x == TileType.FORBIDDEN else 'goal'
 
-    def classify_tile_by_ind(self: ParsedInput, ind: int) -> TileType:
+    def classify_tile_by_ind(self, ind: int) -> TileType:
         if ind == self.goal_1_ind or ind == self.goal_2_ind:
             return TileType.GOAL
         elif ind == self.forbid_ind:
@@ -173,7 +171,7 @@ class ParsedInput:
         else:
             return TileType.NORMAL
 
-    def print_policies(self: ParsedInput, board: list[list[BoardTile]]) -> str:
+    def print_policies(self, board) -> str:
         board_tiles: dict[int, str] = {}
         for each_row in board:
             for each_tile in each_row:
@@ -196,18 +194,17 @@ class ParsedInput:
 
         return '\n'.join(joined_strings)
 
-    def print_q_values(self: ParsedInput, tile: BoardTile) -> str:
+    def print_q_values(self, tile: BoardTile) -> str:
         directions = []
         for each_direction in CLOCKWISE_POLICY_ORDER:
-            directions.append(f'{self.direction_to_string(each_direction)}\t{round(
-                tile.get_q(each_direction), 2) if tile.get_q(each_direction) != 0.0 else '0.0'}')
+            directions.append(f'{self.direction_to_string(each_direction)}\t{round(tile.get_q(each_direction), 2)}')
         # print('\n'.join(directions))
 
         return '\n'.join(directions)
 
 
 class Agent:
-    def __init__(self: Agent, x=0, y=0, ind=0):
+    def __init__(self, x=0, y=0, ind=0):
         self.x = x
         self.y = y
         self.ind = ind
@@ -217,8 +214,8 @@ class Agent:
 # region Helper Functions
 
 
-def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
-    board: list[list[BoardTile]] = []
+def create_basic_board(rows: int, cols: int):
+    board = []
     starting_ranges = [13, 9, 5, 1]
     for i in range(rows):
         ind = starting_ranges[i]
@@ -230,7 +227,7 @@ def create_basic_board(rows: int, cols: int) -> list[list[BoardTile]]:
     return board
 
 
-def apply_input_to_board(board: list[list[BoardTile]], parsed_input: ParsedInput) -> list[list[BoardTile]]:
+def apply_input_to_board(board, parsed_input: ParsedInput):
     for i, each_row in enumerate(board):
         for j, each_tile in enumerate(each_row):
             tile_classification = parsed_input.classify_tile_by_ind(
@@ -294,7 +291,7 @@ def parse_input(inp: str) -> ParsedInput:
         return ParsedInput(START_IND, int(goal_ind1), int(goal_ind2), int(forbidden_ind), int(wall_ind), output_type, int(q_value_ind))
 
 
-def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
+def find_tile_by_ind(board, ind: int) -> BoardTile:
     for each_row in board:
         for each_col in each_row:
             if each_col.index == ind:
@@ -302,7 +299,7 @@ def find_tile_by_ind(board: list[list[BoardTile]], ind: int) -> BoardTile:
     raise ValueError("Tile index does not exist")
 
 
-def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, curr_x: int, curr_y: int) -> BoardTile:
+def simulate_move_on_board(board, action: AgentAction, curr_x: int, curr_y: int) -> BoardTile:
     if action == AgentAction.DOWN:
         new_y = curr_y + 1
 
@@ -353,7 +350,7 @@ def simulate_move_on_board(board: list[list[BoardTile]], action: AgentAction, cu
     return future_piece
 
 
-def chooses_random(epsilon: float | int = 0.5) -> bool:
+def chooses_random(epsilon=0.5) -> bool:
     rand_value = random.uniform(0, 1)
     curr_policy = 1 - epsilon
     if rand_value <= curr_policy:
@@ -365,64 +362,14 @@ def chooses_random(epsilon: float | int = 0.5) -> bool:
 f_q: Callable[[float], float] = lambda x: round(x, 2)
 
 
-def print_q_values(board: list[list[BoardTile]]) -> None:
-    q_tops = []
-    q_middles = []
-    q_bottoms = []
-    for each_row in board:
-        row_tops = [f' {round(x.q_north, 2)} '.rjust(20) for x in each_row]
-        q_tops.append(row_tops)
-        row_middles = [f'{round(x.q_west, 2)} {round(x.q_east, 2)}'.rjust(20) for x in each_row]
-        q_middles.append(row_middles)
-        row_bottoms = [f' {round(x.q_south, 2)} '.rjust(20) for x in each_row]
-        q_bottoms.append(row_bottoms)
-    q_prints = []
-    for i in range(len(q_tops)):
-        q_prints.append(f'{"".join(q_tops[i]).ljust(20)}\n{"".join(
-            q_middles[i]).ljust(20)}\n{"".join(q_bottoms[i]).ljust(20)}')
-    q_output = '\n\n'.join(q_prints)
-    print(q_output)
-
-
-def print_board(board: list[list[BoardTile]], agent_x: int, agent_y: int) -> None:
-    print_q_values(board)
-
-    print(f"################## BOARD [Agent({agent_x, agent_y})] ###################")
-    board_output = []
-    y = 0
-    for each_row in board:
-        sub_row = []
-        for ind, each_cell in enumerate(each_row):
-            if y == agent_y and agent_x == ind:
-                sub_row.append('[A]\t')
-            elif each_cell.tile_type == TileType.FORBIDDEN:
-                sub_row.append('[X]\t')
-            elif each_cell.tile_type == TileType.WALL:
-                sub_row.append('[W]\t')
-            elif each_cell.tile_type == TileType.GOAL:
-                sub_row.append('[G]\t')
-            elif each_cell.tile_type == TileType.START:
-                sub_row.append('[S]\t')
-            else:
-                sub_row.append('[ ]\t')
-        board_output.append(sub_row)
-        y += 1
-    board_print = []
-    for each_row in board_output:
-        board_print.append('\t'.join(each_row))
-    b_output = '\n'.join(board_print)
-    print(b_output)
-    print("######################################################")
-
-
 # endregion
 
 # region Main Classes
 
 
 class State:
-    def __init__(self: State, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board: Optional[list[list[BoardTile]]] = None, agent: Optional[Agent] = None, iterations=0, epsilon=0.5):
-        self.board: list[list[BoardTile]] = board if board is not None else create_basic_board(
+    def __init__(self, rows=4, cols=4, living_reward=-0.1, discount=0.1, learning_rate=0.3, max_iter=100_000, board=None, agent: Optional[Agent] = None, iterations=0, epsilon=0.5):
+        self.board = board if board is not None else create_basic_board(
             rows, cols)
         self.living_reward = living_reward  # r
         self.discount_rate = discount  # gamma
@@ -440,7 +387,7 @@ class State:
         self.debug = False  # SET THIS TO FALSE TO DISABLE BOARD PRINTING
         self.run = True
 
-    def q_value(self: State) -> None:
+    def q_value(self) -> None:
         iteration_count = 0  # start iterations at 0
 
         while self.run:  # while convergence is not triggered
@@ -452,13 +399,8 @@ class State:
             while not current_tile.is_terminal:  # while the current tile is not a terminal tile
                 if iteration_count > self.max_iter and self.run:  # if the iteration count exceeds the threshold
                     self.epsilon = 0  # set ε = 0
-                    self.debug = True  # set debug to True (temporary)
+                    self.debug = False  # set debug to True (temporary)
                     break
-
-                if self.debug:  # used for debugging purposes
-                    print('############### Q_VALUES ###############')
-                    print_board(self.board, self.agent.x, self.agent.y)
-                    print('-----------------------------------------------------')
 
                 q_and_action = [current_tile.get_q(AgentAction.UP), AgentAction.UP]
 
@@ -544,16 +486,16 @@ class State:
                     current_tile.set_all_q(new_q_value)  # ∀a Q(s, a) ← (1 - α) * Q(s, a) + α * [R(s, a, s') + r_living]
 
             iteration_count += 1  # increment iteration
-            iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
+            # iteration_count % 10_000 == 0 and print(iteration_count)  # printing (debugging purposes)
 
-    def learn(self: State) -> None:
+    def learn(self) -> None:
         self.q_value()
 
 
 # endregion
 
 
-def main(inp: bool = False):
+def main(inp: bool = True):
     if inp:
         parsed_input = parse_input(input())
         board_solver = State()
